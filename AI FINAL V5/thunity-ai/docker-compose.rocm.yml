@@ -1,0 +1,29 @@
+# ── Thunity — Joshua Linux AMD / ROCm Ollama OVERRIDE ──────────────────
+# FOR JOSHUA'S LINUX MACHINE WITH AN AMD GPU ONLY. Do NOT use on a Mac.
+#
+# This override swaps the default Ollama image for the ROCm build and grants
+# the container access to the AMD GPU devices. Use it together with the base
+# compose file AND the "ollama" profile:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.rocm.yml \
+#     --profile ollama up -d
+#
+# It only redefines the existing `ollama` service; it adds/removes nothing else
+# and touches no volumes destructively (the ollama_data volume is reused).
+#
+# HSA_OVERRIDE_GFX_VERSION below is a common value for RDNA2 (e.g. RX 6600 XT).
+# Adjust it for your specific GPU if Ollama reports it is unsupported.
+services:
+  ollama:
+    image: ollama/ollama:rocm
+    container_name: thunity-ollama
+    restart: unless-stopped
+    ports: ["127.0.0.1:11434:11434"]
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    volumes: ["ollama_data:/root/.ollama"]
+    networks: [thunity-net]
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - HSA_OVERRIDE_GFX_VERSION=10.3.0

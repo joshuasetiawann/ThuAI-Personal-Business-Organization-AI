@@ -1,0 +1,19 @@
+version: '3.8'
+
+# Override untuk development - mount source code langsung
+services:
+  backend:
+    volumes:
+      - ./backend:/app
+      - local_files:/data/files
+    environment:
+      - DEBUG=true
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  dashboard:
+    volumes:
+      - ./frontend-dashboard/index.html:/usr/share/nginx/html/index.html
+
+  chatbot:
+    volumes:
+      - ./frontend-chatbot/index.html:/usr/share/nginx/html/index.html

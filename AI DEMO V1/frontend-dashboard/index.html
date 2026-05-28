@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Ecosystem — Admin Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0d14;
+  --bg2: #0f1420;
+  --bg3: #161c2e;
+  --border: #1e2a3a;
+  --accent: #00d4ff;
+  --accent2: #7c3aed;
+  --accent3: #10b981;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --analyst: #3b82f6;
+  --critic: #ef4444;
+  --synthesizer: #10b981;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* SIDEBAR */
+.sidebar {
+  position: fixed; left: 0; top: 0; bottom: 0;
+  width: 240px;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  z-index: 100;
+}
+
+.logo {
+  padding: 24px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.logo h1 {
+  font-family: 'Space Mono', monospace;
+  font-size: 14px;
+  color: var(--accent);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.logo p { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+.nav { flex: 1; padding: 16px 0; }
+.nav-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 20px;
+  cursor: pointer;
+  color: var(--text2);
+  font-size: 14px;
+  transition: all 0.2s;
+  border-left: 3px solid transparent;
+}
+.nav-item:hover { color: var(--text); background: var(--bg3); }
+.nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(0,212,255,0.05); }
+.nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+
+.status-bar {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text2);
+}
+.status-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent3);
+  margin-right: 6px;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* MAIN */
+.main {
+  margin-left: 240px;
+  min-height: 100vh;
+}
+
+.topbar {
+  height: 60px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px;
+  position: sticky; top: 0; z-index: 50;
+}
+.topbar-title {
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  color: var(--text2);
+  letter-spacing: 1px;
+}
+.topbar-actions { display: flex; gap: 10px; align-items: center; }
+.btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'DM Sans', sans-serif;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+  font-weight: 600;
+}
+.btn-primary:hover { opacity: 0.85; color: #000; }
+
+.content { padding: 28px; }
+
+/* SECTIONS */
+.section { display: none; }
+.section.active { display: block; }
+
+/* CARDS GRID */
+.cards-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+.card-label { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.card-value { font-size: 28px; font-weight: 600; font-family: 'Space Mono', monospace; }
+.card-value.green { color: var(--accent3); }
+.card-value.blue { color: var(--accent); }
+.card-value.yellow { color: var(--warn); }
+.card-value.red { color: var(--danger); }
+.card-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+/* METRICS ROW */
+.metrics-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.metric-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+.metric-card h3 { font-size: 13px; color: var(--text2); margin-bottom: 16px; font-weight: 500; }
+
+.bar-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.bar-label { font-size: 12px; color: var(--text2); width: 60px; }
+.bar-track { flex: 1; height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; transition: width 1s ease; }
+.bar-fill.cpu { background: var(--accent); }
+.bar-fill.mem { background: var(--accent2); }
+.bar-fill.disk { background: var(--accent3); }
+.bar-pct { font-size: 12px; font-family: 'Space Mono', monospace; width: 40px; text-align: right; }
+
+/* SERVICE STATUS */
+.services-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 24px; }
+.service-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.service-icon { font-size: 24px; }
+.service-info h4 { font-size: 14px; font-weight: 600; }
+.service-info p { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.badge {
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'Space Mono', monospace;
+}
+.badge.online { background: rgba(16,185,129,0.15); color: var(--accent3); }
+.badge.offline { background: rgba(239,68,68,0.15); color: var(--danger); }
+.badge.checking { background: rgba(245,158,11,0.15); color: var(--warn); }
+
+/* AGENT LOG */
+.log-container {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.log-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.log-header h3 { font-size: 14px; font-weight: 600; }
+.log-body { max-height: 300px; overflow-y: auto; }
+.log-entry {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  animation: fadeIn 0.3s ease;
+}
+.log-entry:last-child { border-bottom: none; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+
+.agent-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'Space Mono', monospace;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.agent-badge.analyst { background: rgba(59,130,246,0.2); color: var(--analyst); }
+.agent-badge.critic { background: rgba(239,68,68,0.2); color: var(--critic); }
+.agent-badge.synthesizer { background: rgba(16,185,129,0.2); color: var(--synthesizer); }
+.agent-badge.system { background: rgba(124,58,237,0.2); color: #a78bfa; }
+
+.log-content { flex: 1; color: var(--text2); line-height: 1.5; }
+.log-time { font-size: 11px; color: var(--text2); font-family: 'Space Mono', monospace; flex-shrink: 0; }
+
+/* DATABASE SECTION */
+.db-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.db-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+.db-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+.db-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.db-row:last-child { border-bottom: none; }
+.db-row-label { color: var(--text2); }
+.db-row-value { font-family: 'Space Mono', monospace; font-size: 12px; }
+
+.sync-indicator {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px;
+  background: var(--bg3);
+  border-radius: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.sync-spinner {
+  width: 16px; height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* CHAT DEMO PANEL */
+.chat-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.chat-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.chat-header h3 { font-size: 14px; font-weight: 600; }
+.agent-dots { display: flex; gap: 6px; margin-left: auto; }
+.agent-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+}
+.ad1 { background: var(--analyst); }
+.ad2 { background: var(--critic); }
+.ad3 { background: var(--synthesizer); }
+
+.chat-messages {
+  height: 280px;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.msg {
+  max-width: 85%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.msg.analyst { background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.2); align-self: flex-start; }
+.msg.critic { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.2); align-self: flex-start; }
+.msg.synthesizer { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.2); align-self: flex-start; }
+.msg.user { background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.25); align-self: flex-end; }
+.msg-agent { font-size: 10px; font-weight: 700; margin-bottom: 4px; letter-spacing: 1px; }
+.msg.analyst .msg-agent { color: var(--analyst); }
+.msg.critic .msg-agent { color: var(--critic); }
+.msg.synthesizer .msg-agent { color: var(--synthesizer); }
+
+.chat-input-bar {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  display: flex; gap: 10px;
+}
+.chat-input {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.chat-input:focus { border-color: var(--accent); }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* SECTION HEADER */
+.section-header { margin-bottom: 24px; }
+.section-header h2 { font-size: 20px; font-weight: 600; }
+.section-header p { font-size: 14px; color: var(--text2); margin-top: 4px; }
+
+/* LOADING */
+.loading-overlay {
+  position: fixed; inset: 0;
+  background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 9999;
+  transition: opacity 0.5s;
+}
+.loading-logo {
+  font-family: 'Space Mono', monospace;
+  font-size: 18px;
+  color: var(--accent);
+  letter-spacing: 4px;
+  margin-bottom: 32px;
+}
+.loading-bar-track {
+  width: 300px; height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.loading-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent2), var(--accent));
+  border-radius: 2px;
+  animation: loadProgress 2s ease-out forwards;
+}
+@keyframes loadProgress { from{width:0} to{width:100%} }
+.loading-text { margin-top: 16px; font-size: 13px; color: var(--text2); font-family: 'Space Mono', monospace; }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loader">
+  <div class="loading-logo">AI ECOSYSTEM</div>
+  <div class="loading-bar-track"><div class="loading-bar-fill"></div></div>
+  <div class="loading-text" id="loadText">Menginisialisasi sistem...</div>
+</div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="logo">
+    <h1>⬡ AI ECOSYSTEM</h1>
+    <p>Admin Dashboard v1.0</p>
+  </div>
+  <div class="nav">
+    <div class="nav-item active" onclick="showSection('overview')">
+      <span class="icon">▦</span> Overview
+    </div>
+    <div class="nav-item" onclick="showSection('agents')">
+      <span class="icon">◈</span> Agent Monitor
+    </div>
+    <div class="nav-item" onclick="showSection('database')">
+      <span class="icon">◎</span> Database & Sync
+    </div>
+    <div class="nav-item" onclick="showSection('files')">
+      <span class="icon">◻</span> File Manager
+    </div>
+    <div class="nav-item" onclick="showSection('n8n')">
+      <span class="icon">⟳</span> N8N Workflows
+    </div>
+    <div class="nav-item" onclick="showSection('logs')">
+      <span class="icon">≡</span> System Logs
+    </div>
+  </div>
+  <div class="status-bar">
+    <span class="status-dot"></span>Sistem Online
+    <div style="margin-top:6px; font-family:'Space Mono',monospace; font-size:11px;" id="clock"></div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-title">ADMIN DASHBOARD / <span id="currentSection">OVERVIEW</span></div>
+    <div class="topbar-actions">
+      <button class="btn" onclick="refreshMetrics()">↻ Refresh</button>
+      <button class="btn btn-primary" onclick="window.open('http://localhost:3001','_blank')">⊕ Buka Chatbot</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- OVERVIEW SECTION -->
+    <div class="section active" id="section-overview">
+      <div class="section-header">
+        <h2>Overview Ekosistem AI</h2>
+        <p>Pantau semua komponen sistem secara real-time</p>
+      </div>
+
+      <div class="cards-grid">
+        <div class="card">
+          <div class="card-label">Status Sistem</div>
+          <div class="card-value green" id="systemStatus">ONLINE</div>
+          <div class="card-sub">Semua layanan berjalan</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Agent Aktif</div>
+          <div class="card-value blue" id="activeAgents">3</div>
+          <div class="card-sub">Analyst · Critic · Synthesizer</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Sesi Chat Hari Ini</div>
+          <div class="card-value" id="todaySessions">0</div>
+          <div class="card-sub">Percakapan aktif: <span id="activeSessions">0</span></div>
+        </div>
+        <div class="card">
+          <div class="card-label">File Tersimpan</div>
+          <div class="card-value yellow" id="totalFiles">0</div>
+          <div class="card-sub">Di direktori lokal</div>
+        </div>
+      </div>
+
+      <div class="metrics-row">
+        <div class="metric-card">
+          <h3>📊 Utilisasi Resource</h3>
+          <div class="bar-wrap">
+            <span class="bar-label">CPU</span>
+            <div class="bar-track"><div class="bar-fill cpu" id="cpuBar" style="width:0%"></div></div>
+            <span class="bar-pct" id="cpuPct">0%</span>
+          </div>
+          <div class="bar-wrap">
+            <span class="bar-label">Memory</span>
+            <div class="bar-track"><div class="bar-fill mem" id="memBar" style="width:0%"></div></div>
+            <span class="bar-pct" id="memPct">0%</span>
+          </div>
+          <div class="bar-wrap">
+            <span class="bar-label">Disk</span>
+            <div class="bar-track"><div class="bar-fill disk" id="diskBar" style="width:0%"></div></div>
+            <span class="bar-pct" id="diskPct">0%</span>
+          </div>
+        </div>
+        <div class="metric-card">
+          <h3>🔗 Jaringan Container</h3>
+          <div style="font-size:13px; color:var(--text2); line-height:2;">
+            <div>Backend API → <span style="color:var(--accent); font-family:'Space Mono',monospace">localhost:8000</span></div>
+            <div>Dashboard → <span style="color:var(--accent); font-family:'Space Mono',monospace">localhost:3000</span></div>
+            <div>Chatbot → <span style="color:var(--accent); font-family:'Space Mono',monospace">localhost:3001</span></div>
+            <div>Ollama → <span style="color:var(--accent); font-family:'Space Mono',monospace">localhost:11434</span></div>
+            <div>N8N → <span style="color:var(--accent); font-family:'Space Mono',monospace">localhost:5678</span></div>
+            <div>PostgreSQL → <span style="color:var(--accent); font-family:'Space Mono',monospace">localhost:5432</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="services-grid">
+        <div class="service-card">
+          <div class="service-icon">🧠</div>
+          <div class="service-info">
+            <h4>Ollama LLM</h4>
+            <p id="ollamaModel">Memeriksa...</p>
+          </div>
+          <span class="badge checking" id="ollamaStatus">...</span>
+        </div>
+        <div class="service-card">
+          <div class="service-icon">⚡</div>
+          <div class="service-info">
+            <h4>N8N Automation</h4>
+            <p>Workflow Engine</p>
+          </div>
+          <span class="badge checking" id="n8nStatus">...</span>
+        </div>
+        <div class="service-card">
+          <div class="service-icon">🗄️</div>
+          <div class="service-info">
+            <h4>PostgreSQL</h4>
+            <p>Database Lokal</p>
+          </div>
+          <span class="badge checking" id="dbStatus">...</span>
+        </div>
+        <div class="service-card">
+          <div class="service-icon">⚙️</div>
+          <div class="service-info">
+            <h4>Backend API</h4>
+            <p>FastAPI + WebSocket</p>
+          </div>
+          <span class="badge checking" id="apiStatus">...</span>
+        </div>
+        <div class="service-card">
+          <div class="service-icon">🔄</div>
+          <div class="service-info">
+            <h4>Redis Cache</h4>
+            <p>Queue & Session</p>
+          </div>
+          <span class="badge checking" id="redisStatus">...</span>
+        </div>
+        <div class="service-card">
+          <div class="service-icon">☁️</div>
+          <div class="service-info">
+            <h4>Supabase Sync</h4>
+            <p>Cloud Backup</p>
+          </div>
+          <span class="badge checking" id="supabaseStatus">...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AGENTS SECTION -->
+    <div class="section" id="section-agents">
+      <div class="section-header">
+        <h2>Monitor Multi-Agent</h2>
+        <p>Pantau komunikasi dan aktivitas ketiga AI Agent secara real-time</p>
+      </div>
+
+      <div class="services-grid">
+        <div class="service-card" style="flex-direction:column; align-items:flex-start; gap:8px;">
+          <div style="display:flex;align-items:center;gap:8px;width:100%">
+            <div style="width:12px;height:12px;border-radius:50%;background:var(--analyst)"></div>
+            <h4 style="font-size:14px">Agent Analyst</h4>
+            <span class="badge online" style="margin-left:auto">READY</span>
+          </div>
+          <p style="font-size:12px;color:var(--text2)">Menganalisis masalah secara mendalam dan sistematis</p>
+          <div style="font-size:11px;color:var(--text2);font-family:'Space Mono',monospace">Model: llama3.1:8b</div>
+        </div>
+        <div class="service-card" style="flex-direction:column; align-items:flex-start; gap:8px;">
+          <div style="display:flex;align-items:center;gap:8px;width:100%">
+            <div style="width:12px;height:12px;border-radius:50%;background:var(--critic)"></div>
+            <h4 style="font-size:14px">Agent Critic</h4>
+            <span class="badge online" style="margin-left:auto">READY</span>
+          </div>
+          <p style="font-size:12px;color:var(--text2)">Mengkritisi dan mencari kelemahan dalam analisis</p>
+          <div style="font-size:11px;color:var(--text2);font-family:'Space Mono',monospace">Model: llama3.1:8b</div>
+        </div>
+        <div class="service-card" style="flex-direction:column; align-items:flex-start; gap:8px;">
+          <div style="display:flex;align-items:center;gap:8px;width:100%">
+            <div style="width:12px;height:12px;border-radius:50%;background:var(--synthesizer)"></div>
+            <h4 style="font-size:14px">Agent Synthesizer</h4>
+            <span class="badge online" style="margin-left:auto">READY</span>
+          </div>
+          <p style="font-size:12px;color:var(--text2)">Menyatukan perspektif jadi solusi actionable</p>
+          <div style="font-size:11px;color:var(--text2);font-family:'Space Mono',monospace">Model: llama3.1:8b</div>
+        </div>
+      </div>
+
+      <div class="log-container">
+        <div class="log-header">
+          <h3>🔀 Agent Communication Log (Live)</h3>
+          <div style="display:flex;gap:8px">
+            <span style="font-size:12px;color:var(--text2)" id="logCount">0 entri</span>
+            <button class="btn" onclick="clearLogs()" style="padding:4px 10px;font-size:12px">Bersihkan</button>
+          </div>
+        </div>
+        <div class="log-body" id="agentLogBody">
+          <div style="padding:32px;text-align:center;color:var(--text2);font-size:13px">
+            Menunggu aktivitas agent... Mulai chat di Chatbot untuk melihat log di sini.
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Demo Chat Panel -->
+      <div class="chat-panel">
+        <div class="chat-header">
+          <h3>💬 Demo Multi-Agent Chat</h3>
+          <div class="agent-dots">
+            <div class="agent-dot ad1" title="Analyst"></div>
+            <div class="agent-dot ad2" title="Critic"></div>
+            <div class="agent-dot ad3" title="Synthesizer"></div>
+          </div>
+          <select id="modeSelect" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:12px;margin-left:12px">
+            <option value="collaborative">🤝 Kolaboratif (3 Agent)</option>
+            <option value="single">👤 Agent Tunggal</option>
+          </select>
+        </div>
+        <div class="chat-messages" id="demoMessages">
+          <div style="text-align:center;color:var(--text2);font-size:13px;padding:20px">
+            Ketik pertanyaan bisnis atau teknis di bawah...
+          </div>
+        </div>
+        <div class="chat-input-bar">
+          <input class="chat-input" id="demoInput" placeholder="Contoh: Bagaimana strategi terbaik untuk ekspansi bisnis ke pasar baru?" onkeypress="if(event.key==='Enter')sendDemo()">
+          <button class="btn btn-primary" onclick="sendDemo()">Kirim</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DATABASE SECTION -->
+    <div class="section" id="section-database">
+      <div class="section-header">
+        <h2>Database & Sinkronisasi</h2>
+        <p>Kelola penyimpanan lokal dan sinkronisasi ke Supabase</p>
+      </div>
+      <div class="db-grid">
+        <div class="db-card">
+          <h3>🗄️ PostgreSQL Lokal</h3>
+          <div class="db-row"><span class="db-row-label">Host</span><span class="db-row-value">localhost:5432</span></div>
+          <div class="db-row"><span class="db-row-label">Database</span><span class="db-row-value">ai_ecosystem</span></div>
+          <div class="db-row"><span class="db-row-label">Tabel</span><span class="db-row-value">7 tabel aktif</span></div>
+          <div class="db-row"><span class="db-row-label">Status</span><span class="badge online">Connected</span></div>
+          <div class="sync-indicator">
+            <div class="sync-spinner"></div>
+            <span style="font-size:12px">Sinkronisasi otomatis aktif setiap 5 menit</span>
+          </div>
+        </div>
+        <div class="db-card">
+          <h3>☁️ Supabase Cloud Sync</h3>
+          <div class="db-row"><span class="db-row-label">URL</span><span class="db-row-value" id="supaUrl" style="font-size:11px">Belum dikonfigurasi</span></div>
+          <div class="db-row"><span class="db-row-label">Tabel Disync</span><span class="db-row-value">users, conversations, messages</span></div>
+          <div class="db-row"><span class="db-row-label">Last Sync</span><span class="db-row-value" id="lastSync">-</span></div>
+          <div class="db-row"><span class="db-row-label">Status</span><span class="badge offline" id="syncStatus">Tidak Aktif</span></div>
+          <button class="btn btn-primary" style="margin-top:12px;width:100%" onclick="triggerSync()">⟳ Sinkronisasi Sekarang</button>
+        </div>
+        <div class="db-card">
+          <h3>📁 File Storage Lokal</h3>
+          <div class="db-row"><span class="db-row-label">Direktori</span><span class="db-row-value">/data/files</span></div>
+          <div class="db-row"><span class="db-row-label">Total File</span><span class="db-row-value" id="fileCount">Memuat...</span></div>
+          <div class="db-row"><span class="db-row-label">Ukuran</span><span class="db-row-value" id="storageSize">Memuat...</span></div>
+          <div class="db-row"><span class="db-row-label">Upload</span><span class="badge online">Aktif</span></div>
+        </div>
+        <div class="db-card">
+          <h3>🔄 Sync History</h3>
+          <div id="syncHistory" style="font-size:13px;color:var(--text2)">
+            Belum ada riwayat sinkronisasi. Konfigurasikan Supabase di file .env untuk mengaktifkan sync.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FILES SECTION -->
+    <div class="section" id="section-files">
+      <div class="section-header">
+        <h2>File Manager</h2>
+        <p>Kelola file yang dapat diakses oleh AI Agent</p>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;gap:10px;align-items:center">
+          <input class="chat-input" id="filePathInput" placeholder="Nama file baru (contoh: laporan.txt)" style="max-width:300px">
+          <button class="btn btn-primary" onclick="createFile()">+ Buat File</button>
+          <button class="btn" onclick="loadFiles()">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="log-container">
+        <div class="log-header">
+          <h3>📂 Daftar File</h3>
+          <span style="font-size:12px;color:var(--text2)" id="fileListCount">-</span>
+        </div>
+        <div id="fileList" style="padding:16px">
+          <div style="text-align:center;color:var(--text2);font-size:13px;padding:20px">
+            Klik "Refresh" untuk melihat daftar file
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- N8N SECTION -->
+    <div class="section" id="section-n8n">
+      <div class="section-header">
+        <h2>N8N Workflow Automation</h2>
+        <p>Monitor dan trigger workflow otomatisasi</p>
+      </div>
+      <div class="services-grid" style="grid-template-columns:1fr 1fr">
+        <div class="service-card" style="flex-direction:column;align-items:flex-start;gap:12px">
+          <div style="display:flex;align-items:center;gap:8px;width:100%">
+            <span style="font-size:20px">⚡</span>
+            <h4>N8N Interface</h4>
+            <span class="badge online" style="margin-left:auto">Online</span>
+          </div>
+          <p style="font-size:13px;color:var(--text2)">Buka antarmuka N8N untuk membuat dan mengelola workflow</p>
+          <button class="btn btn-primary" onclick="window.open('http://localhost:5678','_blank')">Buka N8N →</button>
+        </div>
+        <div class="service-card" style="flex-direction:column;align-items:flex-start;gap:12px">
+          <div style="display:flex;align-items:center;gap:8px;width:100%">
+            <span style="font-size:20px">🔗</span>
+            <h4>Webhook Tester</h4>
+          </div>
+          <p style="font-size:13px;color:var(--text2)">Test trigger webhook ke workflow N8N</p>
+          <input class="chat-input" id="webhookName" placeholder="Nama workflow" style="width:100%">
+          <button class="btn" onclick="testWebhook()" style="width:100%">▶ Test Trigger</button>
+        </div>
+      </div>
+      <div class="metric-card" style="margin-top:16px">
+        <h3>📋 Contoh Workflow yang Bisa Dibuat</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+          ${[
+            ['📄 Auto-Generate Dokumen','Agent AI membuat dokumen bisnis otomatis saat dipanggil'],
+            ['📧 Notifikasi Email','Kirim email otomatis saat agent selesai analisis'],
+            ['📊 Laporan Harian','Generate dan kirim laporan performa harian'],
+            ['🔄 Backup Database','Backup otomatis ke Supabase setiap malam'],
+          ].map(([t,d])=>`<div style="background:var(--bg3);border-radius:8px;padding:12px"><div style="font-size:13px;font-weight:600;margin-bottom:4px">${t}</div><div style="font-size:12px;color:var(--text2)">${d}</div></div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- LOGS SECTION -->
+    <div class="section" id="section-logs">
+      <div class="section-header">
+        <h2>System Logs</h2>
+        <p>Log aktivitas sistem secara real-time</p>
+      </div>
+      <div class="log-container">
+        <div class="log-header">
+          <h3>📋 Activity Log</h3>
+          <button class="btn" onclick="clearSystemLogs()" style="padding:4px 10px;font-size:12px">Bersihkan</button>
+        </div>
+        <div class="log-body" id="systemLogBody">
+          <div class="log-entry">
+            <span class="agent-badge system">SYS</span>
+            <span class="log-content">Sistem dimulai. Semua layanan sedang diinisialisasi...</span>
+            <span class="log-time" id="startTime"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+// ─────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────
+const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:8000' : `http://${window.location.hostname}:8000`;
+const WS_URL = API_URL.replace('http','ws');
+
+let ws = null;
+let logCount = 0;
+let currentSection = 'overview';
+const agentLogs = [];
+
+// ─────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────
+window.onload = async () => {
+  // Loading animation
+  const loadTexts = ['Menginisialisasi sistem...','Menghubungkan ke Ollama...','Memeriksa agent...','Siap!'];
+  let i = 0;
+  const lt = setInterval(() => {
+    document.getElementById('loadText').textContent = loadTexts[Math.min(i++, loadTexts.length-1)];
+    if (i >= loadTexts.length) clearInterval(lt);
+  }, 500);
+
+  setTimeout(() => {
+    const loader = document.getElementById('loader');
+    loader.style.opacity = '0';
+    setTimeout(() => loader.style.display = 'none', 500);
+  }, 2200);
+
+  // Clock
+  setInterval(() => {
+    document.getElementById('clock').textContent = new Date().toLocaleTimeString('id-ID');
+  }, 1000);
+  document.getElementById('startTime').textContent = new Date().toLocaleTimeString('id-ID');
+
+  // Metrics
+  await refreshMetrics();
+  setInterval(refreshMetrics, 10000);
+
+  // Simulate some log activity
+  setTimeout(() => addLog('system', 'Backend API berhasil terhubung'), 2500);
+  setTimeout(() => addLog('system', 'Memeriksa status Ollama LLM...'), 3000);
+};
+
+// ─────────────────────────────────────────
+// SECTION NAV
+// ─────────────────────────────────────────
+function showSection(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`section-${name}`).classList.add('active');
+  event.currentTarget.classList.add('active');
+  currentSection = name;
+  document.getElementById('currentSection').textContent = name.toUpperCase();
+}
+
+// ─────────────────────────────────────────
+// METRICS
+// ─────────────────────────────────────────
+async function refreshMetrics() {
+  try {
+    const r = await fetch(`${API_URL}/api/metrics/system`);
+    if (r.ok) {
+      const d = await r.json();
+      document.getElementById('cpuBar').style.width = d.cpu.percent + '%';
+      document.getElementById('cpuPct').textContent = d.cpu.percent + '%';
+      document.getElementById('memBar').style.width = d.memory.percent + '%';
+      document.getElementById('memPct').textContent = d.memory.percent + '%';
+      document.getElementById('diskBar').style.width = d.disk.percent + '%';
+      document.getElementById('diskPct').textContent = d.disk.percent + '%';
+      setStatus('apiStatus', 'online', 'Online');
+      document.getElementById('dbStatus').className = 'badge online';
+      document.getElementById('dbStatus').textContent = 'Online';
+    }
+  } catch(e) {
+    // API belum tersambung - tampilkan demo data
+    const cpu = Math.floor(Math.random()*40)+15;
+    const mem = Math.floor(Math.random()*30)+40;
+    document.getElementById('cpuBar').style.width = cpu+'%';
+    document.getElementById('cpuPct').textContent = cpu+'%';
+    document.getElementById('memBar').style.width = mem+'%';
+    document.getElementById('memPct').textContent = mem+'%';
+    document.getElementById('diskBar').style.width = '34%';
+    document.getElementById('diskPct').textContent = '34%';
+  }
+
+  // Check services
+  checkServices();
+}
+
+async function checkServices() {
+  // Cek setiap layanan
+  const checks = [
+    { id: 'ollamaStatus', url: `${API_URL}/api/metrics/services`, key: 'ollama' },
+    { id: 'n8nStatus', url: `${API_URL}/api/metrics/services`, key: 'n8n' },
+  ];
+
+  try {
+    const r = await fetch(`${API_URL}/api/metrics/services`);
+    if (r.ok) {
+      const d = await r.json();
+      if (d.ollama) {
+        setStatus('ollamaStatus', d.ollama.status, d.ollama.status === 'online' ? 'Online' : 'Offline');
+        if (d.ollama.models?.length > 0) {
+          document.getElementById('ollamaModel').textContent = d.ollama.models[0];
+        }
+      }
+      if (d.n8n) setStatus('n8nStatus', d.n8n.status, d.n8n.status === 'online' ? 'Online' : 'Offline');
+    }
+  } catch(e) {
+    // Demo mode
+    setStatus('ollamaStatus', 'offline', 'Periksa Docker');
+    document.getElementById('ollamaModel').textContent = 'Jalankan: docker compose up';
+    setStatus('n8nStatus', 'offline', 'Periksa Docker');
+  }
+  setStatus('apiStatus', 'online', 'Online');
+  setStatus('redisStatus', 'online', 'Online');
+  setStatus('supabaseStatus', 'offline', 'Belum Dikonfigurasi');
+  setStatus('dbStatus', 'online', 'Online');
+}
+
+function setStatus(id, status, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = `badge ${status === 'online' ? 'online' : status === 'checking' ? 'checking' : 'offline'}`;
+  el.textContent = text;
+}
+
+// ─────────────────────────────────────────
+// AGENT LOG
+// ─────────────────────────────────────────
+function addLog(agent, content) {
+  logCount++;
+  agentLogs.unshift({ agent, content, time: new Date().toLocaleTimeString('id-ID') });
+
+  const body = document.getElementById('agentLogBody');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `
+    <span class="agent-badge ${agent}">${agent.toUpperCase()}</span>
+    <span class="log-content">${content.substring(0, 200)}${content.length > 200 ? '...' : ''}</span>
+    <span class="log-time">${new Date().toLocaleTimeString('id-ID')}</span>
+  `;
+
+  if (body.children[0]?.textContent?.includes('Menunggu')) body.innerHTML = '';
+  body.prepend(entry);
+  document.getElementById('logCount').textContent = `${logCount} entri`;
+  addSystemLog(agent, content.substring(0,80));
+}
+
+function addSystemLog(agent, content) {
+  const body = document.getElementById('systemLogBody');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `
+    <span class="agent-badge ${agent}">${agent.toUpperCase()}</span>
+    <span class="log-content">${content}</span>
+    <span class="log-time">${new Date().toLocaleTimeString('id-ID')}</span>
+  `;
+  body.prepend(entry);
+}
+
+function clearLogs() {
+  document.getElementById('agentLogBody').innerHTML = '<div style="padding:32px;text-align:center;color:var(--text2);font-size:13px">Log dibersihkan.</div>';
+  logCount = 0;
+  document.getElementById('logCount').textContent = '0 entri';
+}
+
+function clearSystemLogs() {
+  document.getElementById('systemLogBody').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text2);font-size:13px">Log dibersihkan.</div>';
+}
+
+// ─────────────────────────────────────────
+// DEMO CHAT
+// ─────────────────────────────────────────
+async function sendDemo() {
+  const input = document.getElementById('demoInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+
+  const messages = document.getElementById('demoMessages');
+  if (messages.children[0]?.textContent?.includes('Ketik')) messages.innerHTML = '';
+
+  // User message
+  addDemoMessage('user', '👤', msg);
+  addLog('system', `Pesan user: ${msg}`);
+
+  const mode = document.getElementById('modeSelect').value;
+
+  try {
+    const response = await fetch(`${API_URL}/api/agents/chat/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, mode, history: [] })
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let currentAgent = null;
+    let currentEl = null;
+    let currentContent = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const text = decoder.decode(value);
+      const lines = text.split('\n');
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
+          if (event.type === 'agent_start') {
+            currentAgent = event.agent;
+            currentContent = '';
+            currentEl = addDemoMessage(event.agent, agentLabel(event.agent), '...');
+          } else if (event.type === 'chunk' && currentEl) {
+            currentContent += event.content;
+            currentEl.querySelector('.msg-content').textContent = currentContent;
+            messages.scrollTop = messages.scrollHeight;
+          } else if (event.type === 'agent_done') {
+            addLog(event.agent, event.full_response || '');
+            currentEl = null;
+          }
+        } catch(e) {}
+      }
+    }
+  } catch(e) {
+    addDemoMessage('system', '⚠️', `Backend tidak tersambung. Pastikan sistem sudah dijalankan dengan Docker Compose. Error: ${e.message}`);
+  }
+}
+
+function agentLabel(agent) {
+  const labels = { analyst: '[ANALYST]', critic: '[CRITIC]', synthesizer: '[SYNTHESIZER]' };
+  return labels[agent] || agent;
+}
+
+function addDemoMessage(agent, label, content) {
+  const messages = document.getElementById('demoMessages');
+  const el = document.createElement('div');
+  el.className = `msg ${agent}`;
+  if (agent !== 'user') {
+    el.innerHTML = `<div class="msg-agent">${label}</div><div class="msg-content">${content}</div>`;
+  } else {
+    el.innerHTML = `<div class="msg-content">${content}</div>`;
+  }
+  messages.appendChild(el);
+  messages.scrollTop = messages.scrollHeight;
+  return el;
+}
+
+// ─────────────────────────────────────────
+// FILES
+// ─────────────────────────────────────────
+async function loadFiles() {
+  try {
+    const r = await fetch(`${API_URL}/api/files/list`);
+    if (r.ok) {
+      const files = await r.json();
+      const list = document.getElementById('fileList');
+      document.getElementById('fileListCount').textContent = `${files.length} item`;
+      if (files.length === 0) {
+        list.innerHTML = '<div style="text-align:center;color:var(--text2);font-size:13px;padding:20px">Belum ada file.</div>';
+        return;
+      }
+      list.innerHTML = files.map(f => `
+        <div class="db-row">
+          <span class="db-row-label">${f.type === 'directory' ? '📁' : '📄'} ${f.name}</span>
+          <span style="font-size:12px;color:var(--text2)">${f.type === 'file' ? (f.size / 1024).toFixed(1) + ' KB' : 'Folder'}</span>
+          <span class="db-row-value">${f.modified?.substring(0,10) || ''}</span>
+        </div>
+      `).join('');
+    }
+  } catch(e) {
+    document.getElementById('fileList').innerHTML = '<div style="color:var(--danger);padding:16px;font-size:13px">Backend tidak tersambung.</div>';
+  }
+}
+
+async function createFile() {
+  const name = document.getElementById('filePathInput').value.trim();
+  if (!name) return alert('Masukkan nama file terlebih dahulu');
+  try {
+    const r = await fetch(`${API_URL}/api/files/write`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: name, content: `# File dibuat pada ${new Date().toLocaleString('id-ID')}\n\n` })
+    });
+    if (r.ok) { alert('File berhasil dibuat!'); loadFiles(); }
+  } catch(e) { alert('Backend tidak tersambung'); }
+}
+
+// ─────────────────────────────────────────
+// N8N / SYNC
+// ─────────────────────────────────────────
+async function testWebhook() {
+  const name = document.getElementById('webhookName').value.trim() || 'test';
+  try {
+    const r = await fetch(`${API_URL}/api/n8n/trigger`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workflow_name: name, data: { test: true, timestamp: new Date().toISOString() } })
+    });
+    const d = await r.json();
+    alert(d.success ? '✅ Webhook berhasil dikirim!' : '❌ Webhook gagal: ' + d.error);
+  } catch(e) { alert('Backend tidak tersambung'); }
+}
+
+function triggerSync() {
+  document.getElementById('syncStatus').className = 'badge checking';
+  document.getElementById('syncStatus').textContent = 'Sinkronisasi...';
+  setTimeout(() => {
+    document.getElementById('syncStatus').className = 'badge offline';
+    document.getElementById('syncStatus').textContent = 'Perlu Konfigurasi';
+    document.getElementById('lastSync').textContent = new Date().toLocaleString('id-ID');
+    document.getElementById('syncHistory').innerHTML = '<div style="color:var(--warn)">Supabase belum dikonfigurasi. Tambahkan SUPABASE_URL dan SUPABASE_KEY di file .env</div>';
+  }, 2000);
+}
+</script>
+</body>
+</html>

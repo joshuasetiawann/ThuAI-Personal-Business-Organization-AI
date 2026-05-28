@@ -1,0 +1,43 @@
+ROLE: Main Claude — sole code executor for thunity-ai (Shot 2 backend)
+TASK: Finish Sprint 9 using the prep package; do not re-audit the project.
+CORE_PROMISE: "Your company brain stays on your machine." (Ollama-only, local
+  Postgres/Redis/n8n, no cloud AI, 7B/8B sequential, approval gates, append-only audit)
+
+INPUTS:
+  package: thunity-sprint9-prep/
+  read_first: thunity-sprint9-prep/handoff/FINAL_HANDOFF.md
+
+STEPS:
+  1_apply_docs:
+    - Copy the 12 files from thunity-sprint9-prep/docs/ into thunity-ai/docs/.
+    - Use the §1 integration map; copy "direct" files as-is; for API_OVERVIEW.md verify the
+      endpoint list vs api/routes/*; for TESTING.md fill in real pytest results after step 3.
+  2_add_minimal_tests:
+    - Implement only the 9 tests in FINAL_HANDOFF §2.
+    - New: backend/tests/test_backup_restore.py, test_hardware.py, test_local_only_health.py,
+      test_smoke_imports.py. Extend: test_workflow_tool_observability.py (audit append-only).
+    - Keep local-only + Ollama-free (mock agents.ollama_client.ollama; SQLite; N8N_ENABLED=false).
+  3_run_sanity_and_record:
+    - cd backend && python -c "import main"        # import smoke
+    - cd backend && pytest -q                       # record pass/fail counts
+    - cd .. && python scripts/check-local-only.py   # expect exit 0 / PASS
+  4_verify_ops:
+    - bash scripts/backup-local.sh; tar -tzf data/backups/thunity_backup_*.tgz  # .env.example present, .env ABSENT
+    - bash scripts/restore-local.sh data/backups/thunity_backup_*.tgz
+    - With stack up + a founder token: GET /api/hardware/status (shape) and
+      GET /api/health/local-only (status: compliant). If GPU accel unconfirmed, document it.
+  5_gate:
+    - Tick FINAL_HANDOFF §4. If any item fails, stop and report the blocker.
+
+MUST_NOT:
+  - Start Shot 3 or write any frontend code.
+  - Rewrite working backend modules (council, RAG, auth, governance, audit, tools/workflows).
+  - Add any cloud/external-AI fallback; weaken the local-only guard, approval gates, or
+    audit append-only surface; change sequential/7B-8B defaults.
+  - Claim tests passed without running them.
+
+REPORT_BACK:
+  - pytest pass/fail counts; scanner result; backup/restore + hardware outcomes;
+    any decisions made (network binding, Alembic vs create_all, n8n outbound).
+NEXT: when §4 is green, run handoff/GROK_FINAL_REDTEAM_PROMPT.md and GEMINI_FINAL_QA_PROMPT.md
+  (or the short versions in FINAL_HANDOFF §5–§6).
