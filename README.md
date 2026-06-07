@@ -14,6 +14,12 @@ task execution, and workflow governance — where **your company brain never lea
 [![React](https://img.shields.io/badge/Frontend-React%20%2B%20TypeScript-61DAFB?style=flat-square&logo=react&logoColor=black)](frontend/)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](docker-compose.yml)
 
+<br>
+
+<img src="docs/screenshots/main-chat.png" alt="ThuAI Main Chat — Founder Command Center" width="900">
+
+*Main Chat — local-first by default, with the Founder Insight Panel watching your whole company at a glance.*
+
 </div>
 
 ---
@@ -85,6 +91,21 @@ A full React + TypeScript control room (Aurora design system) at `localhost:3000
 **Dashboard** · **Council** · **Knowledge Vault** · **Decisions** · **Tasks** ·
 **Approvals** · **Workflows (n8n)** · **Memory** · **Audit Trail** · **Observatory** ·
 **Tools** · **Settings**
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/dashboard.png" alt="Dashboard"><br><sub><b>Dashboard</b> — compliance, council runs, approvals, local backups</sub></td>
+    <td align="center"><img src="docs/screenshots/council.png" alt="AI Council"><br><sub><b>AI Council</b> — the 6-stage deliberation pipeline</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/knowledge.png" alt="Knowledge Vault"><br><sub><b>Knowledge Vault</b> — local semantic search, no cloud upload</sub></td>
+    <td align="center"><img src="docs/screenshots/memory.png" alt="Memory"><br><sub><b>Memory</b> — what ThuAI knows about you, local only</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/observatory.png" alt="System Observatory"><br><sub><b>Observatory</b> — services, hardware & model health</sub></td>
+    <td align="center"><img src="docs/screenshots/login.png" alt="Login"><br><sub><b>Login</b> — your private company brain stays on your machine</sub></td>
+  </tr>
+</table>
 
 ### 🛡️ Governance built-in
 
