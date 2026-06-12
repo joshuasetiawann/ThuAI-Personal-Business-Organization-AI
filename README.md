@@ -7,6 +7,7 @@
 **A private, local-first AI Company OS** for decision-making, knowledge management,
 task execution, and workflow governance — where **your company brain never leaves your computer**.
 
+[![Version](https://img.shields.io/badge/Version-v1.3-blueviolet?style=for-the-badge)](#-version-history)
 [![Local First](https://img.shields.io/badge/Local--First-100%25%20Private-2ea44f?style=for-the-badge)](docs/LOCAL_ONLY_COMPLIANCE.md)
 [![Own Database](https://img.shields.io/badge/Database-Self--Hosted%20PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white)](#-your-data-your-database)
 [![Ollama](https://img.shields.io/badge/AI-Ollama%20Local%20Models-black?style=for-the-badge)](#-honest-hybrid-ai)
@@ -198,38 +199,67 @@ docker exec -it thunity-ollama ollama pull nomic-embed-text
 
 ```bash
 cd backend && pip install -r requirements.txt
-export POSTGRES_URL="sqlite+aiosqlite:///./thunity.db"   # or a local postgres URL
+uvicorn main:app --reload     # v1.3: boots as-is — SQLite dev fallback +
+                              # ephemeral dev SECRET_KEY (sessions reset on restart)
+
+# Optional (persist logins / use Postgres / bootstrap the founder account):
 export SECRET_KEY="$(openssl rand -hex 32)"
+export POSTGRES_URL="sqlite+aiosqlite:///./thunity.db"   # or a local postgres URL
 export FOUNDER_EMAIL="founder@thunity.local" FOUNDER_PASSWORD="strong-pass"
-uvicorn main:app --reload
 ```
 </details>
 
 ---
 
-## 🔧 Recent Hardening (v1.2)
+## 🔧 What's New in v1.3
 
-A full security & reliability pass — every change is covered by the test suite:
+Developer-experience + remaining-audit pass — the app now **runs out of the box**:
+
+- **Backend boots on a fresh checkout** — placeholder secrets are fatal only in production; development boots with loud warnings and a random *ephemeral* `SECRET_KEY` (never a known default)
+- **No more CORS errors in dev** — Vite proxies `/api` to the backend (same-origin, zero CORS) and the backend's dev CORS accepts any `localhost` port
+- **Dev DB fallback** — no Postgres running? The backend falls back to a local SQLite file (development only; production never falls back)
+- **API correctness** — malformed UUIDs return structured 404/400 (never 500); list `total` is the real corpus count; message metadata is size-capped
+- **RAG integrity** — embedding-model tracked per document (model swaps are surfaced, not silently dropped); partial embedding batches abort the ingest; parser resource ceilings (PDF pages, sheet/CSV rows)
+- **Governance** — `MAX_PARALLEL_AGENT_RUNS` actually enforced (429 when busy); tool-arg numeric bounds enforced centrally; failed council stages never pipe raw error text into downstream prompts; provider error bodies never reach audit logs
+- **Frontier routing finally has tests** — the "no silent cloud fallback" promise is locked in by a dedicated suite
+
+### 📜 Version History
+
+Versions are numbered sequentially and tagged. `main` always carries the **latest**
+version; the [`master`](../../tree/master) branch is the **version archive**.
+
+| Version | Tag | Highlights |
+|---|---|---|
+| **v1.3** *(current)* | `v1.3` | Runs out-of-the-box (dev boot + CORS fix), remaining audit findings closed, 110 tests |
+| v1.2 | `v1.2` | Full security & reliability hardening pass (see below), 82 tests |
+| v1.1 | `v1.1` | ThuAI 1.1 promoted to repo root; README + live screenshots |
+| v1.0 | `v1.0` | Initial release (first push) |
+
+<details>
+<summary><b>v1.2 — Security & reliability hardening</b></summary>
 
 - **Local-only is now absolute** — `LOCAL_ONLY_MODE` hard-gates the declared frontier lane (previously bypassable); frontier is off by default
-- **Fail-closed startup** — the backend refuses to boot on an insecure default secret/password in *any* environment
+- **Fail-closed startup** — the backend refuses to boot on an insecure default secret/password in production
 - **Governance integrity** — closed a decision approval-gate bypass; tool arguments are validated against their declared schema; the workflow allow-list is enforced on every path
 - **Tighter authz** — raw file read/list now require `READ_KNOWLEDGE`; dataset import is size-capped; per-IP + per-account login throttling
 - **Smarter RAG** — relevance floor, full-chunk grounding, word-boundary chunking, expired-doc exclusion, and untrusted-data delimiting (indirect prompt-injection defence)
 - **Hardened ops** — non-root container + healthchecks, portable Compose paths, SQLite FK enforcement in tests, async file I/O
+</details>
 
 ---
 
 ## 🧪 Testing & Compliance
 
 ```bash
-cd backend && pytest                     # 82 tests — local sqlite db, Ollama mocked
+cd backend && pytest                     # 110 tests — local sqlite db, Ollama mocked
 python ../scripts/check-local-only.py    # fails if any forbidden cloud dependency is active
 ```
 
-The suite covers auth, file-security, the tool/approval governance gate, and a dedicated
-regression set ([`backend/tests/test_review_fixes.py`](backend/tests/test_review_fixes.py))
-that locks in the local-only ↔ frontier gating so the core promise can't silently regress.
+The suite covers auth, file-security, the tool/approval governance gate, frontier
+routing ([`backend/tests/test_inference_routing.py`](backend/tests/test_inference_routing.py)),
+and regression sets ([`test_review_fixes.py`](backend/tests/test_review_fixes.py),
+[`test_runtime_fixes.py`](backend/tests/test_runtime_fixes.py)) that lock in the
+local-only ↔ frontier gating so the core promise can't silently regress.
 
 ---
 
