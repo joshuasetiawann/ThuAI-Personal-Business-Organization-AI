@@ -28,3 +28,16 @@ __MACOSX/
 .env
 */.env
 !.env.example
+
+# Local runtime data — private company knowledge/uploads/backups stay on-machine
+data/files/
+data/knowledge/
+data/sandbox_runs/
+data/backups/
+
+# Local Python virtualenvs
+.venv/
+venv/
+
+# Claude Code session/memory (never publish)
+.claude/

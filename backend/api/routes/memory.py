@@ -7,7 +7,7 @@ Memory is private per user and never touches the governance ledgers.
 from __future__ import annotations
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from api.deps import get_db, get_current_user
@@ -33,7 +33,7 @@ def _serialize(m: Memory) -> dict:
 
 
 @router.get("")
-async def list_memory(limit: int = 200, kind: str | None = None,
+async def list_memory(limit: int = Query(200, ge=1, le=500), kind: str | None = None,
                       db=Depends(get_db), user: dict = Depends(get_current_user)):
     rows = await ms.list_memories(db, user.get("id"), limit=limit, kind=kind)
     total = await ms.count_memories(db, user.get("id"))

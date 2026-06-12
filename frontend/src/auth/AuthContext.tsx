@@ -6,8 +6,12 @@ interface AuthCtx {
   user: User | null; loading: boolean;
   login: (u: string, p: string) => Promise<void>; logout: () => void;
 }
-const Ctx = createContext<AuthCtx>(null as unknown as AuthCtx);
-export const useAuth = () => useContext(Ctx);
+const Ctx = createContext<AuthCtx | null>(null);
+export const useAuth = (): AuthCtx => {
+  const ctx = useContext(Ctx);
+  if (!ctx) throw new Error("useAuth must be used within an <AuthProvider>.");
+  return ctx;
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);

@@ -35,6 +35,7 @@ _MAX_BYTES = 25 * 1024 * 1024       # per-file safety cap
 
 
 def _iter_files(root: str):
+    root_real = os.path.realpath(root)
     for dirpath, _dirs, files in os.walk(root):
         for name in files:
             if name.startswith("."):
@@ -43,6 +44,12 @@ def _iter_files(root: str):
             if ext not in ks.SUPPORTED:
                 continue
             full = os.path.join(dirpath, name)
+            # Symlink guard: never follow a symlink out of the brain folder (a synced
+            # cloud folder could drop one pointing at an arbitrary host file).
+            if os.path.islink(full):
+                continue
+            if not os.path.realpath(full).startswith(root_real + os.sep):
+                continue
             rel = os.path.relpath(full, root)
             # skip the system's own conversation mirrors
             if rel == _MIRROR_SUBDIR or rel.startswith(_MIRROR_SUBDIR + os.sep):
@@ -50,22 +57,28 @@ def _iter_files(root: str):
             yield full, rel, ext
 
 
+def _read_bytes(full: str) -> bytes:
+    with open(full, "rb") as f:
+        return f.read()
+
+
 async def _ingest_file(db, full: str, rel: str, ext: str, actor: Optional[str]) -> str:
     try:
-        size = os.path.getsize(full)
+        size = await asyncio.to_thread(os.path.getsize, full)
     except OSError:
         return "skip"
     if size == 0 or size > _MAX_BYTES:
         return "skip"
-    with open(full, "rb") as f:
-        sha = hashlib.sha256(f.read()).hexdigest()
+    # Read + parse off the event loop so a big/slow file never stalls the API.
+    data = await asyncio.to_thread(_read_bytes, full)
+    sha = hashlib.sha256(data).hexdigest()
 
     existing = (await db.execute(select(Document).where(
         Document.source_type == "folder", Document.stored_path == rel))).scalars().first()
     if existing and existing.sha256 == sha and existing.document_status != "deprecated":
         return "unchanged"
 
-    segments, _extra = ks.parse_file(full, ext)
+    segments, _extra = await asyncio.to_thread(ks.parse_file, full, ext)
     chunks = ks.chunk_segments(segments)
     vectors = await embed_texts([c["content"] for c in chunks]) if chunks else []
     meta = {"kind": "folder_file", "synced_at": datetime.utcnow().isoformat()}

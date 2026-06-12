@@ -1,0 +1,12 @@
+# Test-runner configuration so the suite runs consistently regardless of the
+# invocation directory (previously it relied on an implicit cwd + sys.path).
+# Run from this directory with:  pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = [
+    # The codebase targets Python 3.11 where datetime.utcnow() is fine; silence the
+    # 3.12+ deprecation noise so real warnings stay visible.
+    "ignore:datetime.datetime.utcnow:DeprecationWarning",
+]

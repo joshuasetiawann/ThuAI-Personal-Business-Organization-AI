@@ -49,7 +49,8 @@ async def create(req: TaskCreate, db=Depends(get_db),
 
 
 @router.get("")
-async def list_tasks(status: str | None = None, db=Depends(get_db), user: dict = Depends(get_current_user),
+async def list_tasks(status: str | None = None, db=Depends(get_db),
+                     user: dict = Depends(require_permission(Perm.CREATE_TASKS)),
                      limit: int = Query(100, le=500), offset: int = Query(0, ge=0)):
     q = select(Task).order_by(Task.created_at.desc())
     if status:
@@ -60,7 +61,8 @@ async def list_tasks(status: str | None = None, db=Depends(get_db), user: dict =
 
 
 @router.get("/{task_id}")
-async def get_task(task_id: str, db=Depends(get_db), user: dict = Depends(get_current_user)):
+async def get_task(task_id: str, db=Depends(get_db),
+                   user: dict = Depends(require_permission(Perm.CREATE_TASKS))):
     t = await _get(db, task_id)
     return {**_brief(t), "description": t.description,
             "source_decision_id": str(t.source_decision_id) if t.source_decision_id else None}

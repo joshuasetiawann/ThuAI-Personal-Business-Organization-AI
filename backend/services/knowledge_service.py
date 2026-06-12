@@ -15,6 +15,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+from datetime import datetime, date
 from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import select
@@ -23,7 +24,9 @@ from config import settings
 from db.models import Document, DocumentChunk
 from services.embedding import embed_text, embed_texts, cosine
 
-SUPPORTED = {"txt", "md", "csv", "json", "xlsx", "xls", "pdf", "yaml", "yml"}
+# NOTE: legacy binary .xls (BIFF) is intentionally NOT supported — openpyxl only
+# reads the OOXML .xlsx format and would raise on a real .xls. Convert to .xlsx.
+SUPPORTED = {"txt", "md", "csv", "json", "xlsx", "pdf", "yaml", "yml"}
 CHUNK_CHARS = 900
 CHUNK_OVERLAP = 120
 
@@ -78,7 +81,7 @@ def parse_file(abs_path: str, ext: str) -> Tuple[List[Dict], Dict]:
         text = "Columns: " + ", ".join(schema["columns"]) + f"\nRows: {schema['row_count']}\n"
         text += "\n".join(", ".join(r) for r in rows[:200])
         segments.append({"text": text})
-    elif ext in {"xlsx", "xls"}:
+    elif ext == "xlsx":
         try:
             from openpyxl import load_workbook
             wb = load_workbook(abs_path, read_only=True, data_only=True)
@@ -116,12 +119,22 @@ def chunk_segments(segments: List[Dict]) -> List[Dict]:
         if not text:
             continue
         start = 0
-        while start < len(text):
-            piece = text[start:start + CHUNK_CHARS]
-            chunks.append({"content": piece, "page": seg.get("page"), "sheet": seg.get("sheet")})
-            if start + CHUNK_CHARS >= len(text):
+        n = len(text)
+        while start < n:
+            end = min(start + CHUNK_CHARS, n)
+            # Prefer to break on a whitespace boundary near CHUNK_CHARS so words and
+            # multi-byte tokens aren't split mid-character (which degrades embeddings).
+            if end < n:
+                window = text[start:end]
+                brk = max(window.rfind(" "), window.rfind("\n"), window.rfind("\t"))
+                if brk >= int(CHUNK_CHARS * 0.6):   # only honour a reasonably-late break
+                    end = start + brk + 1
+            piece = text[start:end].strip()
+            if piece:
+                chunks.append({"content": piece, "page": seg.get("page"), "sheet": seg.get("sheet")})
+            if end >= n:
                 break
-            start += CHUNK_CHARS - CHUNK_OVERLAP
+            start = max(end - CHUNK_OVERLAP, start + 1)
     return chunks
 
 
@@ -184,18 +197,27 @@ async def reindex_document(db, doc: Document, abs_path: str) -> Document:
 
 # ── retrieval / grounding ────────────────────────────────────────────
 async def retrieve_context(db, query: str, top_k: int = None, filters: Optional[Dict] = None) -> List[Dict]:
-    top_k = top_k or settings.MAX_CONTEXT_CHUNKS
+    # Clamp top_k to a hard server-side bound so a caller can never force the whole
+    # corpus (or an arbitrarily large response) into one prompt/response.
+    requested = int(top_k or settings.MAX_CONTEXT_CHUNKS)
+    top_k = max(1, min(requested, settings.MAX_RETRIEVAL_TOP_K))
     qvec = await embed_text(query)
+    now = datetime.utcnow()
 
-    res = await db.execute(select(DocumentChunk, Document).join(
-        Document, Document.id == DocumentChunk.document_id))
+    # Push the cheap, known exclusions into SQL so deprecated/archived chunks are
+    # never even loaded into memory (and the scan grows with candidates, not corpus).
+    stmt = (select(DocumentChunk, Document)
+            .join(Document, Document.id == DocumentChunk.document_id)
+            .where(Document.document_status.notin_(EXCLUDED_STATUS)))
+    if filters and filters.get("client_name"):
+        stmt = stmt.where(Document.client_name == filters["client_name"])
+    res = await db.execute(stmt)
+
     scored = []
     for chunk, doc in res.all():
-        if doc.document_status in EXCLUDED_STATUS:   # never auto-use deprecated/archived
+        if _is_expired(doc, now):                    # never auto-use expired knowledge
             continue
         if filters:
-            if filters.get("client_name") and doc.client_name != filters["client_name"]:
-                continue
             if filters.get("min_trust") and _trust_rank(doc.trust_level) < _trust_rank(filters["min_trust"]):
                 continue
             # don't retrieve the in-progress conversation's own ingested transcript
@@ -203,6 +225,8 @@ async def retrieve_context(db, query: str, top_k: int = None, filters: Optional[
                     and str(doc.conversation_id) == str(filters["exclude_conversation_id"]):
                 continue
         rel = cosine(qvec, chunk.embedding_json or [])
+        if rel < settings.MIN_RELEVANCE:             # drop irrelevant / dimension-mismatched chunks
+            continue
         scored.append((rel, chunk, doc))
     scored.sort(key=lambda x: x[0], reverse=True)
 
@@ -210,6 +234,10 @@ async def retrieve_context(db, query: str, top_k: int = None, filters: Optional[
     for rel, chunk, doc in scored[:top_k]:
         out.append({
             "document_id": str(doc.id), "chunk_id": str(chunk.id), "filename": doc.filename,
+            # `content` is the full chunk used as the grounding payload; `content_preview`
+            # is the short string for UI lists. (Previously only the 400-char preview was
+            # injected, so the model saw <45% of each chunk.)
+            "content": chunk.content[:settings.RETRIEVAL_CHUNK_CHARS],
             "content_preview": chunk.content[:400], "relevance": round(float(rel), 4),
             "relevance_score": round(float(rel), 4),
             "trust_level": doc.trust_level, "document_status": doc.document_status,
@@ -218,6 +246,20 @@ async def retrieve_context(db, query: str, top_k: int = None, filters: Optional[
             "metadata": {"client_name": doc.client_name, "project_name": doc.project_name},
         })
     return out
+
+
+def _is_expired(doc, now: datetime) -> bool:
+    exp = getattr(doc, "expiration_date", None)
+    if not exp:
+        return False
+    try:
+        if isinstance(exp, datetime):
+            return exp < now
+        if isinstance(exp, date):
+            return exp < now.date()
+    except Exception:
+        return False
+    return False
 
 
 def format_grounding(sources: List[Dict]) -> str:

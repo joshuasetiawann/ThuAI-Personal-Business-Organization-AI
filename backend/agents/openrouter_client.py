@@ -24,6 +24,11 @@ class OpenRouterClient:
     def __init__(self):
         self.base = settings.OPENROUTER_BASE_URL.rstrip("/")
 
+    def _timeout(self) -> "httpx.Timeout":
+        # Explicit per-phase timeouts so a hung upstream can't pin the coroutine.
+        t = float(settings.OPENROUTER_TIMEOUT_SECONDS)
+        return httpx.Timeout(t, connect=10.0, read=t, write=10.0, pool=10.0)
+
     def _headers(self) -> Dict[str, str]:
         return {
             "Authorization": f"Bearer {(settings.OPENROUTER_API_KEY or '').strip()}",
@@ -44,7 +49,7 @@ class OpenRouterClient:
         assert_frontier_allowed("openrouter")
         payload = self._payload(model, messages, temperature, max_tokens, stream=False)
         t0 = time.time()
-        async with httpx.AsyncClient(timeout=float(settings.OPENROUTER_TIMEOUT_SECONDS)) as c:
+        async with httpx.AsyncClient(timeout=self._timeout()) as c:
             r = await c.post(f"{self.base}/chat/completions", headers=self._headers(), json=payload)
             if r.status_code >= 400:
                 raise RuntimeError(f"OpenRouter API error {r.status_code}: {r.text[:300]}")
@@ -58,7 +63,7 @@ class OpenRouterClient:
                           max_tokens: int = 1024) -> AsyncIterator[str]:
         assert_frontier_allowed("openrouter")
         payload = self._payload(model, messages, temperature, max_tokens, stream=True)
-        async with httpx.AsyncClient(timeout=float(settings.OPENROUTER_TIMEOUT_SECONDS)) as c:
+        async with httpx.AsyncClient(timeout=self._timeout()) as c:
             async with c.stream("POST", f"{self.base}/chat/completions",
                                 headers=self._headers(), json=payload) as r:
                 if r.status_code >= 400:

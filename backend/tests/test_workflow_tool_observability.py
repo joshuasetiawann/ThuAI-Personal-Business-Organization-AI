@@ -62,7 +62,12 @@ def test_unregistered_tool_blocked(client, founder_token):
     assert r.status_code == 403 and r.json()["code"] == "TOOL_NOT_REGISTERED"
 
 
-def test_tool_called_and_blocked_are_audited(client, founder_token):
+def test_tool_called_and_blocked_are_audited(client, founder_token, monkeypatch):
+    # Mock the local embedder so the search tool runs hermetically (no live Ollama),
+    # matching the pattern in test_knowledge_file_security.
+    import agents.ollama_client as oc
+    async def fake_embed(text): return [1.0, 0.0, 1.0]
+    monkeypatch.setattr(oc.ollama, "embed", fake_embed)
     h = _auth(founder_token)
     client.post("/api/tools/execute", json={"name": "search_knowledge_base", "args": {"query": "x"}}, headers=h)
     client.post("/api/tools/execute", json={"name": "nope_tool"}, headers=h)

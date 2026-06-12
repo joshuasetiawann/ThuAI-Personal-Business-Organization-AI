@@ -12,9 +12,9 @@ from typing import Dict, List
 from config import settings
 
 ALLOWED_EXTENSIONS = {
-    ".txt", ".md", ".json", ".csv", ".xlsx", ".xls", ".pdf",
+    ".txt", ".md", ".json", ".csv", ".xlsx", ".pdf",
     ".docx", ".yaml", ".yml", ".png", ".jpg", ".jpeg",
-}
+}   # legacy binary .xls excluded — no parser supports it (use .xlsx)
 
 
 class FileService:

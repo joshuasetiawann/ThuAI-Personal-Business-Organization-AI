@@ -72,14 +72,15 @@ async def trigger(req: TriggerRequest, db=Depends(get_db),
 
 
 @router.get("/runs")
-async def runs(db=Depends(get_db), user: dict = Depends(get_current_user)):
+async def runs(db=Depends(get_db), user: dict = Depends(require_permission(Perm.RUN_APPROVED_WORKFLOW))):
     rows = (await db.execute(select(WorkflowRun).order_by(WorkflowRun.created_at.desc()).limit(100))).scalars().all()
     return {"runs": [{"id": str(r.id), "workflow_name": r.workflow_name, "status": r.status,
                       "created_at": r.created_at.isoformat()} for r in rows]}
 
 
 @router.get("/runs/{run_id}")
-async def run_detail(run_id: str, db=Depends(get_db), user: dict = Depends(get_current_user)):
+async def run_detail(run_id: str, db=Depends(get_db),
+                     user: dict = Depends(require_permission(Perm.RUN_APPROVED_WORKFLOW))):
     r = (await db.execute(select(WorkflowRun).where(WorkflowRun.id == uuid.UUID(run_id)))).scalar_one_or_none()
     if not r:
         raise AppError(404, "NOT_FOUND", "Workflow run not found.")

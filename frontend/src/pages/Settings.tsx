@@ -60,7 +60,7 @@ function AutoIngestToggle() {
   useEffect(() => {
     api.runtimeSettings()
       .then((r) => setVal(!!r.auto_ingest_conversations))
-      .catch(() => setErr("Tidak bisa memuat setelan."));
+      .catch(() => setErr("Could not load settings."));
   }, []);
   const toggle = async () => {
     if (val === null || saving) return;
@@ -70,7 +70,7 @@ function AutoIngestToggle() {
       const r = await api.setRuntimeSettings({ auto_ingest_conversations: next });
       setVal(!!r.auto_ingest_conversations);
     } catch (e: any) {
-      setErr(e?.message || "Gagal menyimpan.");
+      setErr(e?.message || "Failed to save.");
     } finally { setSaving(false); }
   };
   const on = !!val;
@@ -105,16 +105,16 @@ function BrainFolderSync() {
     setBusy(true); setMsg(null);
     try {
       const r = await api.syncFolder();
-      if (!r.ok) { setMsg("Folder belum siap (mount?)."); return; }
-      setMsg(`Sinkron: +${r.added ?? 0} baru · ${r.updated ?? 0} diperbarui · ${r.unchanged ?? 0} sama · ${r.removed ?? 0} dihapus (total ${r.indexed ?? 0} file ke-index).`);
+      if (!r.ok) { setMsg("Folder not ready (is it mounted?)."); return; }
+      setMsg(`Synced: +${r.added ?? 0} new · ${r.updated ?? 0} updated · ${r.unchanged ?? 0} unchanged · ${r.removed ?? 0} removed (${r.indexed ?? 0} files indexed).`);
     } catch (e: any) {
-      setMsg(e?.message || "Gagal sinkron (Ollama mati?).");
+      setMsg(e?.message || "Sync failed (is Ollama down?).");
     } finally { setBusy(false); }
   };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
       <button className="btn" style={{ width: "auto" }} disabled={busy} onClick={sync}>
-        {busy ? "Menyinkron…" : "Sync sekarang"}
+        {busy ? "Syncing…" : "Sync now"}
       </button>
       {msg && <span className="muted small">{msg}</span>}
     </div>
@@ -222,14 +222,14 @@ export default function Settings() {
         </div>
       </Card>
 
-      <Card title="Brain folder — folder yang dibaca AI">
+      <Card title="Brain folder — the folder the AI reads">
         <div className="muted small" style={{ marginBottom: 12 }}>
-          Taruh file Anda (.md, .txt, .pdf, .csv, .json, dll.) di folder{" "}
-          <span className="mono">~/Documents/thunity-conversations/</span> di Mac Anda — AI akan
-          <b> membacanya</b> sebagai knowledge, di-index otomatis (~tiap 30 detik). Edit/hapus file →
-          knowledge ikut menyesuaikan. Cermin chat otomatis ada di subfolder{" "}
-          <span className="mono">chats/</span> dan di-skip (tak digandakan). Trust default{" "}
-          <b>medium</b>; kelola di <Link className="link" to="/knowledge">Knowledge Vault</Link>.
+          Drop your files (.md, .txt, .pdf, .csv, .json, etc.) into{" "}
+          <span className="mono">~/Documents/thunity-conversations/</span> on your Mac — the AI will
+          <b> read them</b> as knowledge, indexed automatically (~every 30 seconds). Edit/delete a file →
+          the knowledge follows. The automatic chat mirror lives in the{" "}
+          <span className="mono">chats/</span> subfolder and is skipped (never duplicated). Default trust is{" "}
+          <b>medium</b>; manage it in the <Link className="link" to="/knowledge">Knowledge Vault</Link>.
         </div>
         <BrainFolderSync />
       </Card>
