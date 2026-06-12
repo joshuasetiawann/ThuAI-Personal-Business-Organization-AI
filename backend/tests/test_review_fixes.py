@@ -48,11 +48,24 @@ def test_frontier_off_by_default(monkeypatch):
 
 
 # ── Fail-closed startup security check ───────────────────────────────────────
-def test_security_audit_flags_default_secret():
+def test_security_audit_default_secret_fatal_in_production_warns_in_dev():
     from config import Settings, security_audit, _DEFAULT_SECRET
-    s = Settings(SECRET_KEY=_DEFAULT_SECRET)
-    fatal, _warnings = security_audit(s)
+    prod = Settings(SECRET_KEY=_DEFAULT_SECRET, APP_ENV="production")
+    fatal, _warnings = security_audit(prod)
     assert any("SECRET_KEY" in f for f in fatal)
+    # Development must BOOT (the runtime substitutes a random ephemeral secret),
+    # surfacing the problem as a warning instead of refusing to start.
+    dev = Settings(SECRET_KEY=_DEFAULT_SECRET, APP_ENV="development")
+    fatal, warnings = security_audit(dev)
+    assert not fatal
+    assert any("SECRET_KEY" in w for w in warnings)
+
+
+def test_security_audit_wildcard_cors_fatal_everywhere():
+    from config import Settings, security_audit
+    dev = Settings(APP_ENV="development", ALLOWED_ORIGINS="*")
+    fatal, _ = security_audit(dev)
+    assert any("ALLOWED_ORIGINS" in f for f in fatal)
 
 
 # ── Decision approval-gate cannot be bypassed via PATCH status ───────────────

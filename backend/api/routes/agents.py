@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from api.deps import get_db, get_current_user, require_permission
+from config import settings
 from core.permissions import Perm
 from core.errors import AppError
 from core.audit import log_audit, log_error
@@ -40,6 +41,11 @@ from services import conversation_knowledge as ckb
 from services import conversation_export as cexport
 
 router = APIRouter()
+
+# Enforce MAX_PARALLEL_AGENT_RUNS at runtime (previously declared but never
+# enforced): agent runs beyond the limit get an immediate 429 instead of
+# parallel-hammering the local GPU.
+_agent_run_slots = asyncio.Semaphore(max(1, settings.MAX_PARALLEL_AGENT_RUNS))
 
 # Fire-and-forget background tasks (kept referenced so the loop won't GC them).
 _BG: set = set()
@@ -404,9 +410,14 @@ async def council(req: CouncilRequest, db=Depends(get_db),
     if mems:
         await ms.touch_memories(db, mems)
     founder_memory = ms.format_memory_block(mems)
-    result = await run_council(db, req.message, user, conversation_id=uuid.UUID(conv_id),
-                               use_knowledge_base=req.use_knowledge_base, top_k=req.top_k,
-                               allow_deep=req.allow_deep_reasoning, founder_memory=founder_memory)
+    if _agent_run_slots.locked():
+        raise AppError(429, "AGENT_RUNS_BUSY",
+                       f"Max {settings.MAX_PARALLEL_AGENT_RUNS} agent run(s) may execute at once.",
+                       suggested_action="Wait for the current council run to finish, then retry.")
+    async with _agent_run_slots:
+        result = await run_council(db, req.message, user, conversation_id=uuid.UUID(conv_id),
+                                   use_knowledge_base=req.use_knowledge_base, top_k=req.top_k,
+                                   allow_deep=req.allow_deep_reasoning, founder_memory=founder_memory)
     await cs.add_message(db, conv_id, "assistant", result["final_response"],
                          agent_name="executive_synthesizer",
                          metadata={"agent_run_id": result["agent_run_id"],

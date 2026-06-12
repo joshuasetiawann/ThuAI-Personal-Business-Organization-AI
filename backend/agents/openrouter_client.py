@@ -18,6 +18,7 @@ import httpx
 
 from config import settings
 from core.local_only import assert_frontier_allowed
+from agents.anthropic_client import _api_error
 
 
 class OpenRouterClient:
@@ -52,7 +53,7 @@ class OpenRouterClient:
         async with httpx.AsyncClient(timeout=self._timeout()) as c:
             r = await c.post(f"{self.base}/chat/completions", headers=self._headers(), json=payload)
             if r.status_code >= 400:
-                raise RuntimeError(f"OpenRouter API error {r.status_code}: {r.text[:300]}")
+                raise _api_error("OpenRouter", r.status_code, r.text)
             data = r.json()
         choices = data.get("choices") or [{}]
         content = ((choices[0] or {}).get("message") or {}).get("content", "") or ""
@@ -68,7 +69,7 @@ class OpenRouterClient:
                                 headers=self._headers(), json=payload) as r:
                 if r.status_code >= 400:
                     body = await r.aread()
-                    raise RuntimeError(f"OpenRouter API error {r.status_code}: {body[:300]!r}")
+                    raise _api_error("OpenRouter", r.status_code, body)
                 async for line in r.aiter_lines():
                     if not line or not line.startswith("data:"):
                         continue

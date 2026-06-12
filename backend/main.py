@@ -86,9 +86,14 @@ _cors_origins = (settings.allowed_origins_list if settings.is_production
                  else sorted(set(settings.allowed_origins_list) | set(_DEV_ORIGINS)))
 # Auth is a Bearer token in the Authorization header (no cookies), so credentialed
 # CORS is unnecessary; disabling it narrows what cross-origin responses browsers expose.
+# In development, ANY localhost/127.0.0.1 port is also allowed via regex — Vite may
+# pick a non-default port (3001, 5174, …) when its port is busy, and a port mismatch
+# here is exactly the "CORS error" that otherwise breaks login. Production: list only.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    allow_origin_regex=(None if settings.is_production
+                        else r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"),
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],

@@ -13,7 +13,7 @@ from core.permissions import role_has_permission
 from core.audit import log_audit
 from core.errors import AppError
 from tools.registry import get_tool
-from tools.schemas import TOOL_INPUT_SCHEMAS
+from tools.schemas import TOOL_INPUT_SCHEMAS, TOOL_ARG_BOUNDS
 
 HANDLERS: Dict[str, object] = {}   # name -> async handler(db, user, args)
 
@@ -60,6 +60,10 @@ def _validate_args(name: str, args: dict) -> None:
         check = _TYPE_CHECKS.get(typ)
         if check and not check(val):
             raise AppError(400, "INVALID_ARGS", f"Argument '{field}' must be of type {typ}.")
+        bounds = (TOOL_ARG_BOUNDS.get(name) or {}).get(field)
+        if bounds and isinstance(val, (int, float)) and not (bounds[0] <= val <= bounds[1]):
+            raise AppError(400, "INVALID_ARGS",
+                           f"Argument '{field}' must be between {bounds[0]} and {bounds[1]}.")
 
 
 def _cap_result(result):

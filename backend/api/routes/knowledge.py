@@ -9,7 +9,7 @@ from sqlalchemy import select
 from datetime import datetime
 from api.deps import get_db, require_permission
 from core.permissions import Perm
-from core.errors import AppError
+from core.errors import AppError, parse_uuid
 from core.audit import log_audit
 from db.models import Document, ApprovalRequest
 from services.file_service import file_service
@@ -158,7 +158,7 @@ async def delete_document(doc_id: str, approval_id: str | None = None, db=Depend
             "approval_required": True, "approval_id": str(req.id), "risk_level": "high",
             "message": "Founder approval required before deleting this document."})
     appr = (await db.execute(select(ApprovalRequest).where(
-        ApprovalRequest.id == uuid.UUID(approval_id)))).scalar_one_or_none()
+        ApprovalRequest.id == parse_uuid(approval_id, "approval_id", 400)))).scalar_one_or_none()
     if not appr or appr.status != "approved" or appr.payload_json.get("document_id") != doc_id:
         raise AppError(403, "APPROVAL_REQUIRED", "A valid, approved approval is required to delete.")
     file_service.delete(doc.stored_path)
@@ -170,7 +170,8 @@ async def delete_document(doc_id: str, approval_id: str | None = None, db=Depend
 
 
 async def _get(db, doc_id: str) -> Document:
-    doc = (await db.execute(select(Document).where(Document.id == uuid.UUID(doc_id)))).scalar_one_or_none()
+    doc = (await db.execute(select(Document).where(
+        Document.id == parse_uuid(doc_id, "document id")))).scalar_one_or_none()
     if not doc:
         raise AppError(404, "NOT_FOUND", "Document not found.")
     return doc

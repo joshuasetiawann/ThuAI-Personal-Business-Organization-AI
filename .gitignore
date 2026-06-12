@@ -41,3 +41,8 @@ venv/
 
 # Claude Code session/memory (never publish)
 .claude/
+
+# Dev runtime artifacts: SQLite dev-fallback DB + compose exports default
+backend/data/
+data/exports/
+thunity_dev.db

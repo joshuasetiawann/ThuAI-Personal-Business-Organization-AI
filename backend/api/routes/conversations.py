@@ -1,9 +1,10 @@
 """Conversation + message persistence (real, not stubs)."""
 from __future__ import annotations
+import json
 import uuid
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
-from sqlalchemy import select, or_
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import select, or_, func
 from api.deps import get_db, get_current_user, require_permission
 from core.permissions import Perm
 from core.errors import AppError
@@ -20,8 +21,17 @@ class ConversationCreate(BaseModel):
 
 class MessageCreate(BaseModel):
     role: str = "user"
-    content: str
+    content: str = Field(max_length=200_000)
     metadata_json: dict = {}
+
+    @field_validator("metadata_json")
+    @classmethod
+    def _metadata_bounded(cls, v: dict) -> dict:
+        # Free-form metadata is persisted verbatim; cap its serialized size so a
+        # single message can't bloat the row (or the export files) without bound.
+        if v and len(json.dumps(v, default=str)) > 16_384:
+            raise ValueError("metadata_json must serialize to at most 16 KB")
+        return v
 
 
 @router.post("")
@@ -37,10 +47,13 @@ async def create_conversation(req: ConversationCreate, db=Depends(get_db),
 async def list_conversations(db=Depends(get_db), user: dict = Depends(get_current_user),
                              limit: int = Query(100, le=500), offset: int = Query(0, ge=0)):
     q = select(Conversation).order_by(Conversation.updated_at.desc())
+    count_q = select(func.count()).select_from(Conversation)
     if user["role"] not in ("founder", "admin"):
         q = q.where(Conversation.user_id == uuid.UUID(user["id"]))
+        count_q = count_q.where(Conversation.user_id == uuid.UUID(user["id"]))
     q = q.limit(limit).offset(offset)
     rows = (await db.execute(q)).scalars().all()
+    total = int((await db.execute(count_q)).scalar_one())
     in_kb: set[str] = set()
     if rows:
         docs = (await db.execute(select(Document.conversation_id).where(
@@ -50,7 +63,7 @@ async def list_conversations(db=Depends(get_db), user: dict = Depends(get_curren
                                "created_at": c.created_at.isoformat(),
                                "updated_at": c.updated_at.isoformat(),  # last-activity (real chat time)
                                "in_knowledge": str(c.id) in in_kb} for c in rows],
-            "total": len(rows)}
+            "total": total}
 
 
 @router.get("/{conv_id}")

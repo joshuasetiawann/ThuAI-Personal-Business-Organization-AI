@@ -20,6 +20,20 @@ from config import settings
 from core.local_only import assert_frontier_allowed
 
 
+def _api_error(provider: str, status: int, body) -> RuntimeError:
+    """Build a SAFE provider error: status + the provider's machine-readable error
+    type only. The raw response body is deliberately excluded — it can echo prompt
+    content, and these messages end up persisted in the audit/error logs."""
+    etype = "unknown_error"
+    try:
+        raw = body.decode("utf-8", "ignore") if isinstance(body, (bytes, bytearray)) else str(body)
+        err = json.loads(raw).get("error") or {}
+        etype = str(err.get("type") or err.get("code") or etype)   # OpenRouter uses 'code'
+    except Exception:
+        pass
+    return RuntimeError(f"{provider} API error {status} ({etype})")
+
+
 def _split_system(messages: List[Dict]) -> Tuple[str, List[Dict]]:
     """Anthropic takes `system` as a top-level string and a user/assistant-only
     message list. Pull system text out, normalise roles, and merge consecutive
@@ -90,7 +104,7 @@ class AnthropicClient:
         async with httpx.AsyncClient(timeout=self._timeout()) as c:
             r = await c.post(f"{self.base}/v1/messages", headers=self._headers(), json=payload)
             if r.status_code >= 400:
-                raise RuntimeError(f"Anthropic API error {r.status_code}: {r.text[:300]}")
+                raise _api_error("Anthropic", r.status_code, r.text)
             data = r.json()
         parts = data.get("content") or []
         content = "".join(b.get("text", "") for b in parts if b.get("type") == "text")
@@ -108,7 +122,7 @@ class AnthropicClient:
                                 headers=self._headers(), json=payload) as r:
                 if r.status_code >= 400:
                     body = await r.aread()
-                    raise RuntimeError(f"Anthropic API error {r.status_code}: {body[:300]!r}")
+                    raise _api_error("Anthropic", r.status_code, body)
                 async for line in r.aiter_lines():
                     if not line or not line.startswith("data:"):
                         continue

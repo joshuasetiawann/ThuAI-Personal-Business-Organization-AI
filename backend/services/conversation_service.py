@@ -15,7 +15,11 @@ async def create_conversation(db, user_id: Optional[str], title: str = "New conv
 
 
 async def get_conversation(db, conv_id: str) -> Optional[Conversation]:
-    res = await db.execute(select(Conversation).where(Conversation.id == uuid.UUID(str(conv_id))))
+    try:
+        cid = uuid.UUID(str(conv_id))
+    except (ValueError, TypeError):
+        return None       # malformed id behaves like "not found", never a 500
+    res = await db.execute(select(Conversation).where(Conversation.id == cid))
     return res.scalar_one_or_none()
 
 

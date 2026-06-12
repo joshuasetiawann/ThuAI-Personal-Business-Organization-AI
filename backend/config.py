@@ -19,6 +19,7 @@ sync adapter remains gated and off by default.
 """
 from __future__ import annotations
 
+import secrets
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -191,29 +192,51 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+# Development boot ergonomics: a missing/default SECRET_KEY must never be USED,
+# but it also must not brick every `uvicorn main:app` run before a .env exists.
+# In development we substitute a cryptographically random EPHEMERAL secret (more
+# secure than any committed default — tokens simply don't survive a restart) and
+# surface it as a warning. Production still refuses to boot (see security_audit).
+SECRET_KEY_EPHEMERAL = False
+if not settings.is_production and settings.is_secret_default:
+    settings.SECRET_KEY = secrets.token_hex(32)
+    SECRET_KEY_EPHEMERAL = True
+
 
 def security_audit(s: Settings = settings) -> tuple[List[str], List[str]]:
     """Return (fatal, warnings).
 
-    `fatal` problems MUST refuse app start in ANY environment — they are insecure
-    defaults that would compromise the system regardless of APP_ENV. This closes
-    the prior gap where the real deployment never set APP_ENV=production, leaving
-    the production hard-block inert. `warnings` surface posture without blocking."""
+    `fatal` problems refuse app start. Contradictory/dangerous config (wildcard
+    CORS, Supabase under LOCAL_ONLY_MODE) is fatal in EVERY environment. Insecure
+    placeholder secrets are fatal in production; in development they are loud
+    warnings instead (the SECRET_KEY is replaced by a random ephemeral value at
+    import time, and placeholder DB/n8n passwords simply fail to connect), so a
+    fresh checkout can actually boot for local development."""
     fatal: List[str] = []
     warnings: List[str] = []
 
-    # ── Always-fatal: insecure defaults dangerous in every environment ──
-    if s.is_secret_default:
-        fatal.append("SECRET_KEY is default/missing/too short — set a strong random value "
-                     "(`openssl rand -hex 32`).")
-    if s.db_password in _DEFAULT_DB_PASSWORDS:
-        fatal.append("Database password is still a default/placeholder value (e.g. CHANGE_ME).")
-    if s.N8N_ENABLED and s.N8N_BASIC_AUTH_PASSWORD in _DEFAULT_N8N_PASSWORDS:
-        fatal.append("n8n basic-auth password is still a default/placeholder value.")
+    # ── Always-fatal: contradictory config dangerous in every environment ──
     if "*" in s.ALLOWED_ORIGINS:
         fatal.append("ALLOWED_ORIGINS contains a wildcard (*) — unsafe with credentialed CORS.")
     if s.ENABLE_SUPABASE_ADAPTER and s.LOCAL_ONLY_MODE:
         fatal.append("Supabase adapter is enabled while LOCAL_ONLY_MODE is true — contradictory config.")
+
+    # ── Placeholder secrets: fatal in production, warning in development ──
+    placeholder: List[str] = []
+    if s.is_secret_default:
+        placeholder.append("SECRET_KEY is default/missing/too short — set a strong random value "
+                           "(`openssl rand -hex 32`).")
+    if s.db_password in _DEFAULT_DB_PASSWORDS:
+        placeholder.append("Database password is still a default/placeholder value (e.g. CHANGE_ME).")
+    if s.N8N_ENABLED and s.N8N_BASIC_AUTH_PASSWORD in _DEFAULT_N8N_PASSWORDS:
+        placeholder.append("n8n basic-auth password is still a default/placeholder value.")
+    if s.is_production:
+        fatal.extend(placeholder)
+    else:
+        warnings.extend(f"[dev] {p}" for p in placeholder)
+    if SECRET_KEY_EPHEMERAL and s is settings:
+        warnings.append("SECRET_KEY was not set — using a random EPHEMERAL dev secret; all "
+                        "sessions reset on restart. Set SECRET_KEY in .env to persist logins.")
 
     # ── Warnings: explain the active data-sovereignty posture ──
     if not s.LOCAL_ONLY_MODE:

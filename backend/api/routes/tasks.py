@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from api.deps import get_db, get_current_user, require_permission
 from core.permissions import Perm
-from core.errors import AppError
+from core.errors import AppError, parse_uuid
 from core.audit import log_audit
 from db.models import Task, Decision
 from services import task_service
@@ -89,7 +89,8 @@ async def patch_task(task_id: str, req: TaskPatch, db=Depends(get_db),
 @router.post("/from-decision/{decision_id}")
 async def from_decision(decision_id: str, db=Depends(get_db),
                         user: dict = Depends(require_permission(Perm.CREATE_TASKS))):
-    d = (await db.execute(select(Decision).where(Decision.id == uuid.UUID(decision_id)))).scalar_one_or_none()
+    d = (await db.execute(select(Decision).where(
+        Decision.id == parse_uuid(decision_id, "decision id")))).scalar_one_or_none()
     if not d:
         raise AppError(404, "NOT_FOUND", "Decision not found.")
     t = await task_service.create_from_decision(db, d, created_by=user["email"])
@@ -100,7 +101,8 @@ async def from_decision(decision_id: str, db=Depends(get_db),
 
 
 async def _get(db, task_id: str) -> Task:
-    t = (await db.execute(select(Task).where(Task.id == uuid.UUID(task_id)))).scalar_one_or_none()
+    t = (await db.execute(select(Task).where(
+        Task.id == parse_uuid(task_id, "task id")))).scalar_one_or_none()
     if not t:
         raise AppError(404, "NOT_FOUND", "Task not found.")
     return t
