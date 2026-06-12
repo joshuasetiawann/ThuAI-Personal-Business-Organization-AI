@@ -1,282 +1,68 @@
 <div align="center">
 
-# ◆ ThuAI — Thunity Personal Business Organization AI
+# ◆ ThuAI — Version Archive (`master`)
 
 ### Your Personal AI. Your Own Database. Your Machine.
 
-**A private, local-first AI Company OS** for decision-making, knowledge management,
-task execution, and workflow governance — where **your company brain never leaves your computer**.
-
-[![Version](https://img.shields.io/badge/Version-v1.3-blueviolet?style=for-the-badge)](#-version-history)
-[![Local First](https://img.shields.io/badge/Local--First-100%25%20Private-2ea44f?style=for-the-badge)](docs/LOCAL_ONLY_COMPLIANCE.md)
-[![Own Database](https://img.shields.io/badge/Database-Self--Hosted%20PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white)](#-your-data-your-database)
-[![Ollama](https://img.shields.io/badge/AI-Ollama%20Local%20Models-black?style=for-the-badge)](#-honest-hybrid-ai)
-[![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](backend/)
-[![React](https://img.shields.io/badge/Frontend-React%20%2B%20TypeScript-61DAFB?style=flat-square&logo=react&logoColor=black)](frontend/)
-[![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](docker-compose.yml)
-
-<br>
-
-<img src="docs/screenshots/main-chat.png" alt="ThuAI Main Chat — Founder Command Center" width="900">
-
-*Main Chat — local-first by default, with the Founder Insight Panel watching your whole company at a glance.*
+[![Archive](https://img.shields.io/badge/Branch-Version%20Archive-8957e5?style=for-the-badge)](#-version-index)
+[![Latest](https://img.shields.io/badge/Latest%20Version-v1.3%20on%20main-blueviolet?style=for-the-badge)](../../tree/main)
 
 </div>
 
 ---
 
-## 🧠 What is ThuAI?
+## 📦 What this branch is
 
-ThuAI is a **personal AI operating system** for running your business — not a chatbot,
-not a SaaS subscription, not someone else's cloud. It's an entire AI company brain that
-lives **on your own hardware**, with **your own database**, under **your full control**.
+This `master` branch is the **version archive** of ThuAI — Thunity Personal Business
+Organization AI. It carries the **full release history**, so every released version of
+the project can be checked out from here by its exact commit.
 
-> 💡 **Core promise:** every document, decision, memory, embedding, and conversation
-> is stored in a database **you own**, on a machine **you control**. No silent cloud
-> calls. No data leaving your house without your explicit, labelled permission.
-
----
-
-## ✨ What Makes It Special
-
-### 🏛️ AI Council — six AI agents debate before you decide
-
-Instead of one model giving one answer, ThuAI runs a **6-stage agent council** on every
-strategic question:
-
-```
- ① Architect Analyst      →  deep diagnosis & analysis
- ② Red Team Critic        →  adversarially attacks the analysis
- ③ Execution Engineer     →  "can we actually do this on our hardware?"
- ④ Architect (revision)   →  refines the analysis with all feedback
- ⑤ Executive Synthesizer  →  produces the final structured decision
- ⑥ Evaluator              →  scores the answer (accuracy, grounding, hallucination risk)
-```
-
-You get a decision that has already survived its own internal critics — with sources,
-risk scores, and an audit trail.
-
-### 🔒 Privacy by architecture, not by promise
-
-- **`LOCAL_ONLY_MODE=true` is the master kill-switch** → while it's on (the default), **no external AI path is reachable at all** — the declared frontier lane is hard-disabled too, so a stray ambient API key can never route your data to the cloud ([`backend/core/local_only.py`](backend/core/local_only.py))
-- The declared frontier (Claude/OpenRouter) is **opt-in** — it requires a key **and** `FRONTIER_ENABLED=true` **and** `LOCAL_ONLY_MODE=false`, three deliberate steps
-- A static scanner ([`scripts/check-local-only.py`](scripts/check-local-only.py)) **and** behavioral tests **fail the build** if a forbidden cloud dependency or a gating regression sneaks in
-- Live compliance endpoint: `GET /api/health/local-only`
-- Full posture documented in [`docs/LOCAL_ONLY_COMPLIANCE.md`](docs/LOCAL_ONLY_COMPLIANCE.md)
-
-### 🗄️ Your Data, Your Database
-
-Everything lives in **self-hosted PostgreSQL** running in your own Docker stack:
-
-| Data | Where it lives |
-|---|---|
-| 📚 Documents & knowledge (RAG) | Your Postgres — chunks + embeddings, local cosine search |
-| 🧬 Vector embeddings | Generated locally by Ollama `nomic-embed-text` — never sent out |
-| 🧠 Founder memory (facts, people, projects) | Your Postgres |
-| 💬 Conversations & council runs | Your Postgres |
-| 📋 Decisions, tasks, approvals, audit log | Your Postgres |
-| 💾 Backups | Local snapshots, one click from the dashboard |
-
-No external vector DB. No embedding API. No telemetry.
-
-### 🤝 Honest-Hybrid AI
-
-Reasoning runs on **local Ollama models by default** (`qwen2.5`, `llama3.1`,
-`qwen2.5-coder`). The frontier lane is **off by default**; for heavy strategic work you
-*may* explicitly declare **one** frontier model (Claude or OpenRouter), and when it's
-used it is **always labelled** to you. No key configured? The system runs **100% local**.
-There is **never a silent cloud fallback**.
-
-### 🎛️ Founder Command Center
-
-A full React + TypeScript control room (Aurora design system) at `localhost:3000`:
-
-**Dashboard** · **Council** · **Knowledge Vault** · **Decisions** · **Tasks** ·
-**Approvals** · **Workflows (n8n)** · **Memory** · **Audit Trail** · **Observatory** ·
-**Tools** · **Settings**
-
-<table>
-  <tr>
-    <td align="center"><img src="docs/screenshots/dashboard.png" alt="Dashboard"><br><sub><b>Dashboard</b> — compliance, council runs, approvals, local backups</sub></td>
-    <td align="center"><img src="docs/screenshots/council.png" alt="AI Council"><br><sub><b>AI Council</b> — the 6-stage deliberation pipeline</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/screenshots/knowledge.png" alt="Knowledge Vault"><br><sub><b>Knowledge Vault</b> — local semantic search, no cloud upload</sub></td>
-    <td align="center"><img src="docs/screenshots/memory.png" alt="Memory"><br><sub><b>Memory</b> — what ThuAI knows about you, local only</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/screenshots/observatory.png" alt="System Observatory"><br><sub><b>Observatory</b> — services, hardware & model health</sub></td>
-    <td align="center"><img src="docs/screenshots/login.png" alt="Login"><br><sub><b>Login</b> — your private company brain stays on your machine</sub></td>
-  </tr>
-</table>
-
-### 🛡️ Governance built-in
-
-- **Risk-scored decisions** (low → critical) with approval gates for high-risk actions
-- **Allow-listed n8n workflows** — the AI can only trigger automation you've approved
-- **Complete audit trail** of every decision, model call, and blocked external attempt
-- **Founder memory** injected into every council stage, so the AI always knows *your* context
+> 🟢 **Looking for the app?** The latest version always lives on
+> [**`main`**](../../tree/main) — use that branch to run, develop, and read the full
+> product README.
 
 ---
 
-## 🏗️ Architecture
+## 📜 Version Index
 
-```
-┌──────────────────────────── YOUR MACHINE ────────────────────────────┐
-│                                                                      │
-│  ┌──────────────┐   ┌──────────────────┐   ┌──────────────────────┐  │
-│  │   Founder    │──▶│  FastAPI Backend │──▶│   Ollama (local AI)  │  │
-│  │ Command Ctr  │   │  agents · RAG ·  │   │ qwen2.5 · llama3.1   │  │
-│  │ React + Vite │   │  governance      │   │ nomic-embed-text     │  │
-│  └──────────────┘   └────────┬─────────┘   └──────────────────────┘  │
-│                              │                                       │
-│         ┌────────────────────┼─────────────────────┐                 │
-│         ▼                    ▼                     ▼                 │
-│  ┌────────────┐      ┌────────────┐         ┌────────────┐           │
-│  │ PostgreSQL │      │   Redis    │         │    n8n     │           │
-│  │ YOUR data  │      │  sessions  │         │ workflows  │           │
-│  │ + vectors  │      │  + cache   │         │ (governed) │           │
-│  └────────────┘      └────────────┘         └────────────┘           │
-│                                                                      │
-└──── optional, declared & labelled: ──── Claude / OpenRouter ─────────┘
-```
-
-**Stack:** FastAPI · SQLAlchemy 2 (async) · PostgreSQL 15 · Redis 7 · Ollama ·
-n8n · React 18 + TypeScript + Vite · Docker Compose (incl. AMD ROCm variant)
-
----
-
-## 🚀 Quick Start
-
-One command per machine. Full guides: [`docs/LOCAL_DEV_RUNBOOK.md`](docs/LOCAL_DEV_RUNBOOK.md) (Mac)
-· [`docs/JOSHUA_LINUX_ROCM_RUNBOOK.md`](docs/JOSHUA_LINUX_ROCM_RUNBOOK.md) (Linux/AMD GPU).
+Versions are numbered **sequentially** (`v1.0 → v1.1 → v1.2 → v1.3 → …`).
+To browse or restore any version from this archive:
 
 ```bash
-# macOS — double-click scripts/start_thunity_mac.command, or:
-bash scripts/start_thunity_mac.sh         # Docker services + frontend (host Ollama)
-
-# Linux + AMD/ROCm:
-bash scripts/start_thunity_linux_rocm.sh  # full stack incl. container Ollama (GPU)
-
-# Health checks anytime (non-destructive):
-bash scripts/dev_doctor.sh
-bash scripts/check_thunity_health.sh
+git fetch origin master
+git checkout <commit>        # e.g. git checkout 7a29e7e  → ThuAI v1.2
 ```
 
-First run creates `.env` from `.env.example` and stops so you can set
-`POSTGRES_PASSWORD`, `N8N_BASIC_AUTH_PASSWORD`, `SECRET_KEY`, `FOUNDER_PASSWORD`.
-
-| Service | URL |
-|---|---|
-| 🎛️ Founder Command Center | http://localhost:3000 |
-| 📖 API docs (OpenAPI) | http://localhost:8000/api/docs |
-| 🔒 Local-only compliance | http://localhost:8000/api/health/local-only |
-| ⚙️ n8n workflows | http://localhost:5678 |
-
-<details>
-<summary><b>🐳 Manual Docker setup</b></summary>
-
-```bash
-cp .env.example .env          # then edit: SECRET_KEY, POSTGRES_PASSWORD,
-                              # N8N_BASIC_AUTH_PASSWORD, FOUNDER_PASSWORD
-
-# Mac: use HOST Ollama (ollama serve), start everything except container Ollama:
-docker compose up -d postgres redis n8n backend
-
-# Linux/CPU container Ollama (opt-in via the 'ollama' profile):
-docker compose --profile ollama up -d
-
-# Pull the local models (never auto-pulled):
-docker exec -it thunity-ollama ollama pull qwen2.5:7b-instruct
-docker exec -it thunity-ollama ollama pull llama3.1:8b
-docker exec -it thunity-ollama ollama pull qwen2.5-coder:7b
-docker exec -it thunity-ollama ollama pull nomic-embed-text
-```
-</details>
-
-<details>
-<summary><b>🐍 Backend only (local Python, no Docker)</b></summary>
-
-```bash
-cd backend && pip install -r requirements.txt
-uvicorn main:app --reload     # v1.3: boots as-is — SQLite dev fallback +
-                              # ephemeral dev SECRET_KEY (sessions reset on restart)
-
-# Optional (persist logins / use Postgres / bootstrap the founder account):
-export SECRET_KEY="$(openssl rand -hex 32)"
-export POSTGRES_URL="sqlite+aiosqlite:///./thunity.db"   # or a local postgres URL
-export FOUNDER_EMAIL="founder@thunity.local" FOUNDER_PASSWORD="strong-pass"
-```
-</details>
+| Version | Commit | Date | Highlights |
+|---|---|---|---|
+| **v1.3** *(latest — on `main`)* | `89b8a5a` | 2026‑06 | Runs out-of-the-box: dev boot fix (no more startup refusal on fresh checkout) + Vite `/api` proxy (zero CORS); malformed UUIDs → 404/400; real list totals; embedding-model tracking; parser resource ceilings; `MAX_PARALLEL_AGENT_RUNS` enforced; provider error bodies kept out of audit logs; frontier-routing test suite — **110 tests** |
+| v1.2 | `7a29e7e` | 2026‑06 | Security & reliability hardening: absolute `LOCAL_ONLY_MODE` gating, fail-closed production startup, approval-gate bypass closed, tool-arg schema validation, RAG relevance floor + full-chunk grounding, hardened containers — **82 tests** |
+| v1.1 | `9e85592` | 2026‑06 | ThuAI 1.1 promoted to the repo root as the canonical app; README redesign + live screenshots |
+| v1.0 | `fad422d` | 2026‑06 | Initial release (*push awal*) — local-first AI Company OS foundation |
 
 ---
 
-## 🔧 What's New in v1.3
+## 🔢 Versioning rules
 
-Developer-experience + remaining-audit pass — the app now **runs out of the box**:
-
-- **Backend boots on a fresh checkout** — placeholder secrets are fatal only in production; development boots with loud warnings and a random *ephemeral* `SECRET_KEY` (never a known default)
-- **No more CORS errors in dev** — Vite proxies `/api` to the backend (same-origin, zero CORS) and the backend's dev CORS accepts any `localhost` port
-- **Dev DB fallback** — no Postgres running? The backend falls back to a local SQLite file (development only; production never falls back)
-- **API correctness** — malformed UUIDs return structured 404/400 (never 500); list `total` is the real corpus count; message metadata is size-capped
-- **RAG integrity** — embedding-model tracked per document (model swaps are surfaced, not silently dropped); partial embedding batches abort the ingest; parser resource ceilings (PDF pages, sheet/CSV rows)
-- **Governance** — `MAX_PARALLEL_AGENT_RUNS` actually enforced (429 when busy); tool-arg numeric bounds enforced centrally; failed council stages never pipe raw error text into downstream prompts; provider error bodies never reach audit logs
-- **Frontier routing finally has tests** — the "no silent cloud fallback" promise is locked in by a dedicated suite
-
-### 📜 Version History
-
-Versions are numbered sequentially. `main` always carries the **latest** version;
-the [`master`](../../tree/master) branch is the **version archive** (index of every
-release with its exact commit).
-
-| Version | Commit | Highlights |
-|---|---|---|
-| **v1.3** *(current)* | `89b8a5a` | Runs out-of-the-box (dev boot + CORS fix), remaining audit findings closed, 110 tests |
-| v1.2 | `7a29e7e` | Full security & reliability hardening pass (see below), 82 tests |
-| v1.1 | `9e85592` | ThuAI 1.1 promoted to repo root; README + live screenshots |
-| v1.0 | `fad422d` | Initial release (first push) |
-
-<details>
-<summary><b>v1.2 — Security & reliability hardening</b></summary>
-
-- **Local-only is now absolute** — `LOCAL_ONLY_MODE` hard-gates the declared frontier lane (previously bypassable); frontier is off by default
-- **Fail-closed startup** — the backend refuses to boot on an insecure default secret/password in production
-- **Governance integrity** — closed a decision approval-gate bypass; tool arguments are validated against their declared schema; the workflow allow-list is enforced on every path
-- **Tighter authz** — raw file read/list now require `READ_KNOWLEDGE`; dataset import is size-capped; per-IP + per-account login throttling
-- **Smarter RAG** — relevance floor, full-chunk grounding, word-boundary chunking, expired-doc exclusion, and untrusted-data delimiting (indirect prompt-injection defence)
-- **Hardened ops** — non-root container + healthchecks, portable Compose paths, SQLite FK enforcement in tests, async file I/O
-</details>
+1. Numbering is **sequential** — the next release after v1.3 is **v1.4** (a breaking
+   redesign may open v2.0, then continue v2.1, v2.2, …).
+2. Every release lands on [`main`](../../tree/main) first; `main`'s README documents
+   the *current* version.
+3. After a release, `master` is fast-forwarded and this **Version Index** gains one
+   row — so this branch always indexes *every* version ever shipped.
 
 ---
 
-## 🧪 Testing & Compliance
+## 🧠 About ThuAI (short)
 
-```bash
-cd backend && pytest                     # 110 tests — local sqlite db, Ollama mocked
-python ../scripts/check-local-only.py    # fails if any forbidden cloud dependency is active
-```
+ThuAI is a **private, local-first AI Company OS** — a 6-stage AI agent council,
+local RAG knowledge vault, founder memory, governed decisions/tasks/workflows, and a
+complete audit trail, all running on **your hardware** with **your own PostgreSQL**.
+`LOCAL_ONLY_MODE=true` (the default) hard-disables every external AI path; an optional
+frontier lane (Claude/OpenRouter) is opt-in, labelled, and never a silent fallback.
 
-The suite covers auth, file-security, the tool/approval governance gate, frontier
-routing ([`backend/tests/test_inference_routing.py`](backend/tests/test_inference_routing.py)),
-and regression sets ([`test_review_fixes.py`](backend/tests/test_review_fixes.py),
-[`test_runtime_fixes.py`](backend/tests/test_runtime_fixes.py)) that lock in the
-local-only ↔ frontier gating so the core promise can't silently regress.
-
----
-
-## 📂 Project Layout
-
-```
-backend/     FastAPI app — agents, RAG, governance, audit, memory
-frontend/    Founder Command Center — React + TypeScript + Vite
-scripts/     start/health/compliance scripts per platform
-docs/        architecture, security, RAG, agent council, operating doctrine
-references/  brand & visual reference sheets
-```
-
-> **Official workspace:** this repo is the **one official Thunity repo**.
-> `PROJECT AI BUILDING` is references-only; `THUWEALTH AI` is a separate project.
-> See [`docs/WORKSPACE_CONSOLIDATION.md`](docs/WORKSPACE_CONSOLIDATION.md).
+Full documentation, screenshots, quick-start guides, and architecture live in the
+[`main` README](../../blob/main/README.md) and [`docs/`](docs/).
 
 ---
 
