@@ -225,15 +225,16 @@ Developer-experience + remaining-audit pass — the app now **runs out of the bo
 
 ### 📜 Version History
 
-Versions are numbered sequentially and tagged. `main` always carries the **latest**
-version; the [`master`](../../tree/master) branch is the **version archive**.
+Versions are numbered sequentially. `main` always carries the **latest** version;
+the [`master`](../../tree/master) branch is the **version archive** (index of every
+release with its exact commit).
 
-| Version | Tag | Highlights |
+| Version | Commit | Highlights |
 |---|---|---|
-| **v1.3** *(current)* | `v1.3` | Runs out-of-the-box (dev boot + CORS fix), remaining audit findings closed, 110 tests |
-| v1.2 | `v1.2` | Full security & reliability hardening pass (see below), 82 tests |
-| v1.1 | `v1.1` | ThuAI 1.1 promoted to repo root; README + live screenshots |
-| v1.0 | `v1.0` | Initial release (first push) |
+| **v1.3** *(current)* | `89b8a5a` | Runs out-of-the-box (dev boot + CORS fix), remaining audit findings closed, 110 tests |
+| v1.2 | `7a29e7e` | Full security & reliability hardening pass (see below), 82 tests |
+| v1.1 | `9e85592` | ThuAI 1.1 promoted to repo root; README + live screenshots |
+| v1.0 | `fad422d` | Initial release (first push) |
 
 <details>
 <summary><b>v1.2 — Security & reliability hardening</b></summary>
