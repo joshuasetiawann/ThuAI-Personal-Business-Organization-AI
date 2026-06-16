@@ -15,7 +15,15 @@ async def embed_text(text: str) -> List[float]:
 async def embed_texts(texts: List[str]) -> List[List[float]]:
     vectors: List[List[float]] = []
     for t in texts:          # sequential — never parallel-hammer the local GPU
-        vectors.append(await ollama.embed(t))
+        vec = await ollama.embed(t)
+        # An empty vector means the embedding model is misconfigured (wrong model
+        # name, or a chat model used by mistake). Fail loudly instead of silently
+        # storing a dead chunk that can never be retrieved (cosine always 0.0).
+        if not vec:
+            raise RuntimeError(
+                "Embedding model returned an empty vector — check OLLAMA_MODEL_EMBEDDING "
+                "(e.g. `ollama pull nomic-embed-text`).")
+        vectors.append(vec)
     return vectors
 
 

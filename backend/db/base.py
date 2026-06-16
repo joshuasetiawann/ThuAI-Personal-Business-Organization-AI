@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped
 from sqlalchemy.types import TypeDecorator, CHAR, JSON
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, String, event
 
 from config import settings
 
@@ -67,8 +67,19 @@ _SessionLocal = None
 
 
 def _make_engine():
-    return create_async_engine(settings.POSTGRES_URL, echo=False, pool_pre_ping=True,
-                               future=True)
+    engine = create_async_engine(settings.POSTGRES_URL, echo=False, pool_pre_ping=True,
+                                 future=True)
+    # SQLite defaults to foreign_keys=OFF, so ON DELETE CASCADE and FK constraints
+    # would be silently ignored — meaning the test suite couldn't catch a cascade or
+    # referential-integrity bug that Postgres enforces in production. Turn it on per
+    # connection so tests exercise the same rules as prod.
+    if engine.dialect.name == "sqlite":
+        @event.listens_for(engine.sync_engine, "connect")
+        def _enable_sqlite_fk(dbapi_conn, _record):  # pragma: no cover - infra glue
+            cur = dbapi_conn.cursor()
+            cur.execute("PRAGMA foreign_keys=ON")
+            cur.close()
+    return engine
 
 
 async def init_db(create_all: bool = True) -> bool:

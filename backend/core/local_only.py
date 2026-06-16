@@ -37,10 +37,14 @@ def assert_local_only(provider: str = "external AI provider") -> None:
 
 
 def frontier_enabled() -> bool:
-    """True when a frontier provider (Anthropic Claude) is DECLARED and keyed.
-    This is a deliberate, labelled, audited path — NOT the silent cloud fallback
-    that LOCAL_ONLY_MODE forbids. No key ⇒ False ⇒ Thunity stays 100% local."""
-    return settings.frontier_configured
+    """True only when a frontier provider is DECLARED/keyed AND LOCAL_ONLY_MODE is OFF.
+
+    LOCAL_ONLY_MODE is the master data-sovereignty switch: while it is true (the
+    default), Thunity is 100% local and NO external AI path — declared or not — is
+    reachable. To use the labelled, audited hybrid Claude/OpenRouter route the
+    founder must explicitly set LOCAL_ONLY_MODE=false. This guarantees a stray
+    ambient key can never silently send data to the cloud."""
+    return settings.frontier_active
 
 
 def active_frontier_providers() -> List[str]:
@@ -49,10 +53,18 @@ def active_frontier_providers() -> List[str]:
 
 
 def assert_frontier_allowed(provider: str = "anthropic") -> None:
-    if not frontier_enabled():
+    """Hard runtime guard for every frontier client. Blocks under LOCAL_ONLY_MODE
+    even when a key is present, so the cloud lane can never fire unless the founder
+    has explicitly disabled local-only mode."""
+    if settings.LOCAL_ONLY_MODE:
+        raise ExternalProviderBlocked(
+            "Frontier (cloud) AI is disabled because LOCAL_ONLY_MODE is true. Set "
+            "LOCAL_ONLY_MODE=false in .env to enable the declared, labelled hybrid route."
+        )
+    if not settings.frontier_configured:
         raise FrontierNotConfigured(
-            "Frontier provider is not configured. Set ANTHROPIC_API_KEY (and keep "
-            "FRONTIER_ENABLED=true) in .env to enable the hybrid Claude route."
+            "Frontier provider is not configured. Set a key (ANTHROPIC_API_KEY or "
+            "OPENROUTER_API_KEY) and FRONTIER_ENABLED=true in .env to enable it."
         )
 
 

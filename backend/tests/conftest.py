@@ -4,6 +4,8 @@ import os, pathlib, pytest
 
 os.environ.setdefault("LOCAL_ONLY_MODE", "true")
 os.environ.setdefault("APP_ENV", "development")
+# A non-default secret is now required to boot (fail-closed security check).
+os.environ.setdefault("SECRET_KEY", "test-only-secret-not-for-production-0123456789abcdef")
 os.environ["POSTGRES_URL"] = "sqlite+aiosqlite:////tmp/thunity_test.db"
 for k, v in {"FILES_DIR": "/tmp/tt_files", "KNOWLEDGE_DIR": "/tmp/tt_kn",
              "SANDBOX_DIR": "/tmp/tt_sb", "BACKUP_DIR": "/tmp/tt_bk"}.items():

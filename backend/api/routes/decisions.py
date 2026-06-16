@@ -71,11 +71,17 @@ async def patch_decision(decision_id: str, req: DecisionPatch, db=Depends(get_db
     d = await _get(db, decision_id)
     if user["role"] not in ("founder", "admin") and d.created_by != user["email"]:
         raise AppError(403, "FORBIDDEN", "Only the creator or an admin can edit this decision.")
-    for f in ("title", "decision_text", "summary", "risk_level", "status"):
+    # Status transitions are NOT editable via this generic PATCH — they must go
+    # through /approve, /reject, /execute, which enforce APPROVE_DECISION and the
+    # high/critical approval gate. Otherwise a CREATE_DRAFT_DECISION holder (analyst)
+    # could self-approve/execute their own draft, bypassing governance.
+    if req.status is not None:
+        raise AppError(400, "STATUS_NOT_EDITABLE",
+                       "Use /approve, /reject, or /execute to change a decision's status.",
+                       suggested_action="POST /api/decisions/{id}/approve (requires APPROVE_DECISION).")
+    for f in ("title", "decision_text", "summary", "risk_level"):
         v = getattr(req, f)
         if v is not None:
-            if f == "status" and v not in decision_service.VALID_STATUS:
-                raise AppError(400, "BAD_STATUS", "Invalid decision status.")
             setattr(d, f, v)
     await log_audit(db, "decision_updated", actor=user["email"], entity_type="decision", entity_id=decision_id)
     await db.commit()

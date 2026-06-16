@@ -1,5 +1,6 @@
 """Real observability aggregations over persisted data (no dummy numbers)."""
 from __future__ import annotations
+import asyncio
 import os
 from datetime import datetime, timedelta
 from typing import Dict
@@ -41,14 +42,20 @@ async def overview(db) -> Dict:
         return (await db.execute(select(func.count()).select_from(AuditLog)
                                  .where(AuditLog.action == action))).scalar() or 0
 
+    async def status_counts(model, statuses):
+        """One GROUP BY query instead of one COUNT per status (was ~9 round-trips)."""
+        rows = (await db.execute(select(model.status, func.count()).group_by(model.status))).all()
+        got = {s: c for s, c in rows}
+        return {s: int(got.get(s, 0)) for s in statuses}
+
     return {
         "agent_runs_today": runs_today,
         "avg_latency_ms": round(float(avg_latency), 1) if avg_latency else 0,
         "failed_agent_runs": failed_runs,
         "error_count": errors,
-        "decisions": {s: await count(Decision, status=s)
-                      for s in ["draft", "pending_approval", "approved", "rejected", "executed"]},
-        "tasks": {s: await count(Task, status=s) for s in ["backlog", "todo", "doing", "done"]},
+        "decisions": await status_counts(
+            Decision, ["draft", "pending_approval", "approved", "rejected", "executed"]),
+        "tasks": await status_counts(Task, ["backlog", "todo", "doing", "done"]),
         "documents_total": await count(Document),
         "documents_unverified": await count(Document, trust_level="untrusted"),
         "documents_deprecated": await count(Document, document_status="deprecated"),
@@ -63,7 +70,8 @@ async def overview(db) -> Dict:
                             "Ollama may run on CPU fallback — multi-agent runs may be slow.",
         "local_only_status": compliance_status(),
         "external_ai_providers_enabled": external_ai_providers_enabled(),
-        "last_backup": last_backup(),
+        # Filesystem scan off the event loop so it can't add request latency.
+        "last_backup": await asyncio.to_thread(last_backup),
     }
 
 

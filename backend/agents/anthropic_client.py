@@ -60,10 +60,14 @@ class AnthropicClient:
     def _payload(self, model: str, messages: List[Dict], temperature: float,
                  max_tokens: int, stream: bool) -> Dict:
         system, convo = _split_system(messages)
+        # The Anthropic Messages API only accepts temperature in [0.0, 1.0]; an
+        # out-of-range value returns HTTP 400 and the whole frontier call fails.
+        # Clamp defensively so a caller passing e.g. 1.5 never breaks the route.
+        temp = max(0.0, min(1.0, float(temperature)))
         body: Dict = {
             "model": model,
             "max_tokens": max_tokens or settings.ANTHROPIC_MAX_TOKENS,
-            "temperature": temperature,
+            "temperature": temp,
             "messages": convo,
             "stream": stream,
         }
@@ -71,13 +75,19 @@ class AnthropicClient:
             body["system"] = system
         return body
 
+    def _timeout(self) -> "httpx.Timeout":
+        # Explicit per-phase timeouts: a slow/hung provider can't pin the coroutine
+        # indefinitely (a single float would only cap idle gaps, not connect/write).
+        t = float(settings.ANTHROPIC_TIMEOUT_SECONDS)
+        return httpx.Timeout(t, connect=10.0, read=t, write=10.0, pool=10.0)
+
     async def chat(self, model: str, messages: List[Dict], temperature: float = 0.7,
                    max_tokens: int = 1024) -> Dict:
         """Non-streaming Claude completion. Returns {content, latency_ms, model, provider, usage}."""
         assert_frontier_allowed("anthropic")
         payload = self._payload(model, messages, temperature, max_tokens, stream=False)
         t0 = time.time()
-        async with httpx.AsyncClient(timeout=float(settings.ANTHROPIC_TIMEOUT_SECONDS)) as c:
+        async with httpx.AsyncClient(timeout=self._timeout()) as c:
             r = await c.post(f"{self.base}/v1/messages", headers=self._headers(), json=payload)
             if r.status_code >= 400:
                 raise RuntimeError(f"Anthropic API error {r.status_code}: {r.text[:300]}")
@@ -93,7 +103,7 @@ class AnthropicClient:
         """Stream Claude text deltas. Yields plain text chunks as they arrive."""
         assert_frontier_allowed("anthropic")
         payload = self._payload(model, messages, temperature, max_tokens, stream=True)
-        async with httpx.AsyncClient(timeout=float(settings.ANTHROPIC_TIMEOUT_SECONDS)) as c:
+        async with httpx.AsyncClient(timeout=self._timeout()) as c:
             async with c.stream("POST", f"{self.base}/v1/messages",
                                 headers=self._headers(), json=payload) as r:
                 if r.status_code >= 400:

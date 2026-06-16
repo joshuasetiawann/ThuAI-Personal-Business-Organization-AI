@@ -19,12 +19,25 @@ from db.models import User
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _bearer = HTTPBearer(auto_error=False)
 
+# bcrypt silently truncates input past 72 bytes — two long passwords sharing the
+# first 72 bytes would otherwise authenticate interchangeably. Reject longer inputs
+# explicitly so the full password is always honoured (no silent truncation).
+_MAX_PASSWORD_BYTES = 72
+
 
 def hash_password(password: str) -> str:
+    if len((password or "").encode("utf-8")) > _MAX_PASSWORD_BYTES:
+        raise AppError(400, "PASSWORD_TOO_LONG",
+                       f"Password must be at most {_MAX_PASSWORD_BYTES} bytes.",
+                       suggested_action="Choose a shorter passphrase.")
     return pwd_context.hash(password)
 
 
 def verify_password(password: str, password_hash: str) -> bool:
+    # An over-length input could never have been stored (hash_password rejects it),
+    # so treat it as a non-match rather than letting bcrypt truncate-and-compare.
+    if len((password or "").encode("utf-8")) > _MAX_PASSWORD_BYTES:
+        return False
     try:
         return pwd_context.verify(password, password_hash)
     except Exception:
@@ -50,11 +63,18 @@ async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(_bearer
         raise AppError(401, "AUTH_INVALID", "Invalid or expired token.")
     if db is None:
         raise AppError(503, "DB_OFFLINE", "Database is not available.")
+    # Validate the token subject shape explicitly so a malformed token is a clear
+    # 401 — not silently coerced into "user not found", and not masking DB errors.
     try:
-        res = await db.execute(select(User).where(User.id == uuid.UUID(str(payload.get("sub")))))
+        user_id = uuid.UUID(str(payload.get("sub")))
+    except (ValueError, TypeError, AttributeError):
+        raise AppError(401, "AUTH_INVALID", "Invalid token subject.")
+    try:
+        res = await db.execute(select(User).where(User.id == user_id))
         user = res.scalar_one_or_none()
     except Exception:
-        user = None
+        # A genuine DB failure must surface as 503, not be conflated with auth failure.
+        raise AppError(503, "DB_OFFLINE", "Database error while resolving the session.")
     if user is None or not user.is_active:
         raise AppError(401, "AUTH_INVALID", "User not found or inactive.")
     # Stateless revocation: a token is valid only while its `tv` claim matches the

@@ -57,8 +57,9 @@ risk scores, and an audit trail.
 
 ### 🔒 Privacy by architecture, not by promise
 
-- **`LOCAL_ONLY_MODE=true`** → every external call is **hard-blocked and audited** at the code level ([`backend/core/local_only.py`](backend/core/local_only.py))
-- A static scanner ([`scripts/check-local-only.py`](scripts/check-local-only.py)) **fails the build** if any forbidden cloud dependency sneaks in
+- **`LOCAL_ONLY_MODE=true` is the master kill-switch** → while it's on (the default), **no external AI path is reachable at all** — the declared frontier lane is hard-disabled too, so a stray ambient API key can never route your data to the cloud ([`backend/core/local_only.py`](backend/core/local_only.py))
+- The declared frontier (Claude/OpenRouter) is **opt-in** — it requires a key **and** `FRONTIER_ENABLED=true` **and** `LOCAL_ONLY_MODE=false`, three deliberate steps
+- A static scanner ([`scripts/check-local-only.py`](scripts/check-local-only.py)) **and** behavioral tests **fail the build** if a forbidden cloud dependency or a gating regression sneaks in
 - Live compliance endpoint: `GET /api/health/local-only`
 - Full posture documented in [`docs/LOCAL_ONLY_COMPLIANCE.md`](docs/LOCAL_ONLY_COMPLIANCE.md)
 
@@ -80,9 +81,10 @@ No external vector DB. No embedding API. No telemetry.
 ### 🤝 Honest-Hybrid AI
 
 Reasoning runs on **local Ollama models by default** (`qwen2.5`, `llama3.1`,
-`qwen2.5-coder`). For heavy strategic work you *may* declare **one** frontier model
-(Claude or OpenRouter) — and when it's used, it is **always labelled** to you.
-No key configured? The system runs **100% local**. There is **never a silent cloud fallback**.
+`qwen2.5-coder`). The frontier lane is **off by default**; for heavy strategic work you
+*may* explicitly declare **one** frontier model (Claude or OpenRouter), and when it's
+used it is **always labelled** to you. No key configured? The system runs **100% local**.
+There is **never a silent cloud fallback**.
 
 ### 🎛️ Founder Command Center
 
@@ -205,12 +207,29 @@ uvicorn main:app --reload
 
 ---
 
+## 🔧 Recent Hardening (v1.2)
+
+A full security & reliability pass — every change is covered by the test suite:
+
+- **Local-only is now absolute** — `LOCAL_ONLY_MODE` hard-gates the declared frontier lane (previously bypassable); frontier is off by default
+- **Fail-closed startup** — the backend refuses to boot on an insecure default secret/password in *any* environment
+- **Governance integrity** — closed a decision approval-gate bypass; tool arguments are validated against their declared schema; the workflow allow-list is enforced on every path
+- **Tighter authz** — raw file read/list now require `READ_KNOWLEDGE`; dataset import is size-capped; per-IP + per-account login throttling
+- **Smarter RAG** — relevance floor, full-chunk grounding, word-boundary chunking, expired-doc exclusion, and untrusted-data delimiting (indirect prompt-injection defence)
+- **Hardened ops** — non-root container + healthchecks, portable Compose paths, SQLite FK enforcement in tests, async file I/O
+
+---
+
 ## 🧪 Testing & Compliance
 
 ```bash
-cd backend && pytest -q                  # local sqlite db, Ollama mocked
+cd backend && pytest                     # 82 tests — local sqlite db, Ollama mocked
 python ../scripts/check-local-only.py    # fails if any forbidden cloud dependency is active
 ```
+
+The suite covers auth, file-security, the tool/approval governance gate, and a dedicated
+regression set ([`backend/tests/test_review_fixes.py`](backend/tests/test_review_fixes.py))
+that locks in the local-only ↔ frontier gating so the core promise can't silently regress.
 
 ---
 

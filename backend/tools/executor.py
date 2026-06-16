@@ -5,14 +5,73 @@ audited; high/critical-risk tools require an approved approval. No free-form cal
 Tools without a bound handler return status=not_implemented (honest — never a
 fake success). Handlers are bound in HANDLERS as the system grows."""
 from __future__ import annotations
+import json as _json
+import uuid as _uuidmod
 from typing import Dict, Optional
 
 from core.permissions import role_has_permission
 from core.audit import log_audit
 from core.errors import AppError
 from tools.registry import get_tool
+from tools.schemas import TOOL_INPUT_SCHEMAS
 
 HANDLERS: Dict[str, object] = {}   # name -> async handler(db, user, args)
+
+_MAX_RESULT_BYTES = 512 * 1024     # hard cap on a serialized tool result
+
+
+def _is_uuid(v) -> bool:
+    try:
+        _uuidmod.UUID(str(v))
+        return True
+    except Exception:
+        return False
+
+
+_TYPE_CHECKS = {
+    "str": lambda v: isinstance(v, str),
+    "int": lambda v: isinstance(v, int) and not isinstance(v, bool),
+    "float": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool),
+    "bool": lambda v: isinstance(v, bool),
+    "dict": lambda v: isinstance(v, dict),
+    "list": lambda v: isinstance(v, list),
+    "uuid": _is_uuid,
+}
+
+
+def _validate_args(name: str, args: dict) -> None:
+    """Enforce the declared input schema BEFORE a handler runs: reject unknown
+    keys, require non-optional fields, and type-check each value. Makes the
+    schema the single source of truth instead of decoration."""
+    schema = TOOL_INPUT_SCHEMAS.get(name)
+    if schema is None:
+        return
+    unknown = [k for k in args if k not in schema]
+    if unknown:
+        raise AppError(400, "INVALID_ARGS", f"Unknown argument(s): {', '.join(sorted(unknown))}.")
+    for field, spec in schema.items():
+        optional = spec.endswith("?")
+        typ = spec[:-1] if optional else spec
+        val = args.get(field)
+        if val is None:
+            if not optional:
+                raise AppError(400, "INVALID_ARGS", f"Missing required argument: '{field}'.")
+            continue
+        check = _TYPE_CHECKS.get(typ)
+        if check and not check(val):
+            raise AppError(400, "INVALID_ARGS", f"Argument '{field}' must be of type {typ}.")
+
+
+def _cap_result(result):
+    """Bound the serialized result size so a single call can't return an unbounded payload."""
+    try:
+        size = len(_json.dumps(result, default=str))
+    except Exception:
+        return result
+    if size <= _MAX_RESULT_BYTES:
+        return result
+    return {"truncated": True, "approx_bytes": size,
+            "note": f"Result exceeded {_MAX_RESULT_BYTES} bytes and was withheld."}
 
 
 async def execute_tool(db, user: dict, name: str, args: Optional[dict] = None,
@@ -67,6 +126,10 @@ async def execute_tool(db, user: dict, name: str, args: Optional[dict] = None,
             raise AppError(403, "APPROVAL_REQUIRED",
                            "A valid approved approval is required for this tool.")
 
+    # Validate args against the declared schema BEFORE running. Placed after the
+    # approval gate so the approval-REQUEST flow may carry partial args.
+    _validate_args(name, args)
+
     if tool.get("audit", True):
         await log_audit(db, "tool_called", actor=actor, actor_role=role,
                         entity_type="tool", entity_id=name)
@@ -75,7 +138,24 @@ async def execute_tool(db, user: dict, name: str, args: Optional[dict] = None,
     if handler is None:
         return {"tool": name, "status": "not_implemented",
                 "note": "Registered and authorized, but no handler is bound yet."}
-    return {"tool": name, "status": "ok", "result": await handler(db, user, args)}
+    try:
+        result = await handler(db, user, args)
+    except Exception as e:
+        # Record the failed attempt durably — the route won't commit on exception,
+        # so without this the 'tool_called' audit above would be lost on failure.
+        if tool.get("audit", True):
+            try:
+                await log_audit(db, "tool_failed", actor=actor, actor_role=role, entity_type="tool",
+                                entity_id=name, metadata={"error": type(e).__name__})
+                if db is not None:
+                    await db.commit()
+            except Exception:
+                pass
+        raise
+    if tool.get("audit", True):
+        await log_audit(db, "tool_succeeded", actor=actor, actor_role=role,
+                        entity_type="tool", entity_id=name)
+    return {"tool": name, "status": "ok", "result": _cap_result(result)}
 
 
 # ── Real handlers (bound below). Governance (registration + permission + approval)
@@ -105,6 +185,11 @@ async def _h_read_document(db, user, args):
     doc = (await db.execute(_select(Document).where(Document.id == duid))).scalar_one_or_none()
     if not doc:
         raise AppError(404, "NOT_FOUND", "Document not found.")
+    # Apply the same lifecycle governance as semantic retrieval: never expose
+    # deprecated/archived documents through the direct-read tool either.
+    from services.knowledge_service import EXCLUDED_STATUS
+    if doc.document_status in EXCLUDED_STATUS:
+        raise AppError(404, "NOT_FOUND", "Document is not available.")
     chunks = (await db.execute(_select(DocumentChunk).where(DocumentChunk.document_id == duid)
                                .order_by(DocumentChunk.chunk_index).limit(5))).scalars().all()
     return {"document_id": str(doc.id), "filename": doc.filename, "trust_level": doc.trust_level,

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 import httpx
 from config import settings
+from core.errors import AppError
 from core.permissions import Perm
 from db.models import WorkflowRun
 
@@ -117,6 +118,14 @@ NATIVE_WORKFLOWS = {
 
 async def trigger(db, name: str, triggered_by: str, approval_id=None, payload: dict = None,
                   source_decision_id=None, source_task_id=None) -> WorkflowRun:
+    # Defence-in-depth: enforce the allow-list HERE too, not just on the /workflows
+    # route. The tool path (_h_trigger_allowed_workflow) reaches this directly, so
+    # without this an approved caller could inject an arbitrary webhook path/name.
+    if not is_allowed(name):
+        raise AppError(403, "WORKFLOW_NOT_ALLOWED",
+                       f"Workflow '{name}' is not in the allow-list.")
+    if not isinstance(payload or {}, dict):
+        raise AppError(400, "INVALID_PAYLOAD", "Workflow payload must be an object.")
     run = WorkflowRun(workflow_name=name, triggered_by=triggered_by, approval_id=approval_id,
                       status="running", source_decision_id=source_decision_id,
                       source_task_id=source_task_id)

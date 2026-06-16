@@ -33,8 +33,11 @@ def test_high_risk_tool_with_valid_approval_passes_gate(client, founder_token):
     req = client.post("/api/tools/execute", json={"name": "trigger_allowed_workflow"}, headers=h).json()
     aid = req["approval_id"]
     assert client.post(f"/api/approvals/{aid}/approve", json={}, headers=h).status_code == 200
+    # Use a native (no-n8n) allow-listed workflow so the gate test is hermetic and
+    # supplies the now-required, schema-validated workflow_name.
     done = client.post("/api/tools/execute",
-                       json={"name": "trigger_allowed_workflow", "approval_id": aid}, headers=h)
+                       json={"name": "trigger_allowed_workflow", "approval_id": aid,
+                             "args": {"workflow_name": "generate_local_report"}}, headers=h)
     assert done.status_code == 200 and done.json().get("approval_required") is not True
 
 

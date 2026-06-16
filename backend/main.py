@@ -8,6 +8,7 @@ local Ollama; there is no cloud/external AI provider in the core path.
 """
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -15,7 +16,7 @@ from fastapi.exceptions import RequestValidationError, HTTPException
 import asyncio
 import uvicorn
 
-from config import settings, startup_safety_check
+from config import settings, security_audit
 from core.errors import error_payload
 from db.base import init_db, session_factory
 from api.routes import (
@@ -24,12 +25,55 @@ from api.routes import (
     settings as settings_route, memory, reports, backup,
 )
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ── startup ──
+    fatal, warnings = security_audit()
+    if fatal:
+        # Fail-closed in EVERY environment: never boot on a dangerous insecure default.
+        raise RuntimeError("Refusing to start — insecure configuration: " + "; ".join(fatal))
+    for w in warnings:
+        print(f"⚠️  {w}")
+    app.state._folder_sync_task = None
+    ok = await init_db(create_all=True)
+    if ok:
+        try:
+            sf = session_factory()
+            async with sf() as db:
+                from services.bootstrap import run_bootstrap
+                result = await run_bootstrap(db)
+                print(f"✅ Bootstrap: {result}")
+        except Exception as e:
+            print(f"⚠️  Bootstrap warning: {e}")
+        # Folder → Knowledge: periodically index files the founder drops in the brain folder.
+        try:
+            from services import folder_knowledge
+            app.state._folder_sync_task = asyncio.create_task(folder_knowledge.run_periodic())
+            print("✅ Folder→Knowledge sync started.")
+        except Exception as e:
+            print(f"⚠️  Folder→Knowledge sync not started: {e}")
+    print(f"✅ Thunity backend ready. LOCAL_ONLY_MODE={settings.LOCAL_ONLY_MODE} APP_ENV={settings.APP_ENV}")
+
+    yield
+
+    # ── shutdown ── cancel the background folder-sync task so it isn't orphaned.
+    task = getattr(app.state, "_folder_sync_task", None)
+    if task is not None:
+        task.cancel()
+        try:
+            await task
+        except (asyncio.CancelledError, Exception):
+            pass
+
+
 app = FastAPI(
     title="Thunity Local AI Company OS",
     description="Private, local-first AI operating system. Local-only core; no external AI providers.",
     version="2.0.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
+    lifespan=lifespan,
 )
 
 # CORS — strict allowlist from environment, never a wildcard.
@@ -40,12 +84,14 @@ _DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173",
                 "http://localhost:3000", "http://127.0.0.1:3000"]
 _cors_origins = (settings.allowed_origins_list if settings.is_production
                  else sorted(set(settings.allowed_origins_list) | set(_DEV_ORIGINS)))
+# Auth is a Bearer token in the Authorization header (no cookies), so credentialed
+# CORS is unnecessary; disabling it narrows what cross-origin responses browsers expose.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # ── routers ──────────────────────────────────────────────────────────
@@ -110,34 +156,6 @@ async def generic_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500,
                         content=error_payload("INTERNAL_ERROR", "An internal error occurred.",
                                               suggested_action="Check server logs for details."))
-
-
-# ── startup ──────────────────────────────────────────────────────────
-@app.on_event("startup")
-async def on_startup():
-    problems = startup_safety_check()
-    if settings.is_production and problems:
-        raise RuntimeError("Refusing to start in production: " + "; ".join(problems))
-    for p in problems:
-        print(f"⚠️  {p}")
-    ok = await init_db(create_all=True)
-    if ok:
-        try:
-            sf = session_factory()
-            async with sf() as db:
-                from services.bootstrap import run_bootstrap
-                result = await run_bootstrap(db)
-                print(f"✅ Bootstrap: {result}")
-        except Exception as e:
-            print(f"⚠️  Bootstrap warning: {e}")
-        # Folder → Knowledge: periodically index files the founder drops in the brain folder.
-        try:
-            from services import folder_knowledge
-            app.state._folder_sync_task = asyncio.create_task(folder_knowledge.run_periodic())
-            print("✅ Folder→Knowledge sync started.")
-        except Exception as e:
-            print(f"⚠️  Folder→Knowledge sync not started: {e}")
-    print(f"✅ Thunity backend ready. LOCAL_ONLY_MODE={settings.LOCAL_ONLY_MODE} APP_ENV={settings.APP_ENV}")
 
 
 if __name__ == "__main__":

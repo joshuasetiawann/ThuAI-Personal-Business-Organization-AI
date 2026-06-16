@@ -38,6 +38,11 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       - POSTGRES_DB=thunity_ai
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d thunity_ai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -47,6 +52,11 @@ services:
     volumes: ["redis_data:/data"]
     networks: [thunity-net]
     command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   n8n:
     image: n8nio/n8n:latest
@@ -68,7 +78,16 @@ services:
     container_name: thunity-backend
     restart: unless-stopped
     ports: ["127.0.0.1:8000:8000"]
-    volumes: ["local_data:/data", "./backend:/app", "/Users/aaa/Documents/thunity-conversations:/exports"]
+    # THUNITY_EXPORTS_DIR is the host folder the founder browses (Finder/Files).
+    # Defaults to a portable in-repo path; on a Mac set it to e.g.
+    # THUNITY_EXPORTS_DIR=~/Documents/thunity-conversations in .env. (Previously a
+    # hard-coded /Users/aaa/... path leaked a username and broke on Linux.)
+    # ./backend:/app is a DEV convenience (live source over the image); for an
+    # immutable production image, remove it and rely on the Dockerfile COPY.
+    volumes:
+      - "local_data:/data"
+      - "./backend:/app"
+      - "${THUNITY_EXPORTS_DIR:-./data/exports}:/exports"
     networks: [thunity-net]
     env_file: [.env]
     environment:
@@ -80,4 +99,6 @@ services:
       - REDIS_URL=redis://redis:6379
     # ollama intentionally NOT in depends_on: it is profile-gated and reached
     # lazily over OLLAMA_URL, so the backend must not block on it at startup.
-    depends_on: [postgres, redis]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }

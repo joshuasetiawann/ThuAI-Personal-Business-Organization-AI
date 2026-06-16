@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from fastapi import APIRouter, Depends, UploadFile, File, Form, Query
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from datetime import datetime
 from api.deps import get_db, require_permission
@@ -21,7 +21,7 @@ router = APIRouter()
 
 class SearchReq(BaseModel):
     query: str
-    top_k: int = 5
+    top_k: int = Field(5, ge=1, le=50)   # bounded so a caller can't request the whole corpus
     client_name: str | None = None
 
 
@@ -128,6 +128,13 @@ async def deprecate_document(doc_id: str, db=Depends(get_db),
 async def reindex_document(doc_id: str, db=Depends(get_db),
                            user: dict = Depends(require_permission(Perm.MANAGE_DOCUMENTS))):
     doc = await _get(db, doc_id)
+    # Only uploaded documents live under FILES_DIR with a resolvable stored_path.
+    # Folder-synced and conversation-transcript docs store paths rooted elsewhere
+    # (or empty), so resolving them against FILES_DIR is meaningless/unsafe.
+    if not doc.stored_path or (doc.source_type or "") in ("folder", "conversation"):
+        raise AppError(400, "REINDEX_UNSUPPORTED",
+                       "Reindex is only supported for uploaded documents; "
+                       "re-run folder sync or re-ingest the conversation instead.")
     try:
         await ks.reindex_document(db, doc, file_service.safe_path(doc.stored_path).as_posix())
     except Exception as e:

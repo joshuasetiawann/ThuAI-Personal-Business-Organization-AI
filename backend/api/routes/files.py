@@ -29,7 +29,7 @@ async def upload(file: UploadFile = File(...), db=Depends(get_db),
 
 
 @router.get("/list")
-async def list_files(subdir: str = "", user: dict = Depends(get_current_user)):
+async def list_files(subdir: str = "", user: dict = Depends(require_permission(Perm.READ_KNOWLEDGE))):
     try:
         return {"files": file_service.list_files(subdir)}
     except PermissionError as e:
@@ -37,7 +37,7 @@ async def list_files(subdir: str = "", user: dict = Depends(get_current_user)):
 
 
 @router.get("/read")
-async def read_file(path: str = Query(...), user: dict = Depends(get_current_user)):
+async def read_file(path: str = Query(...), user: dict = Depends(require_permission(Perm.READ_KNOWLEDGE))):
     try:
         data = file_service.read_bytes(path)
     except PermissionError as e:
