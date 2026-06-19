@@ -1,5 +1,7 @@
 # Thunity Local AI Company OS — local stack. All services run on the founder's
 # machine. No cloud services. Secrets come from .env (never committed).
+name: thunity-ai
+
 networks:
   thunity-net:
     driver: bridge
