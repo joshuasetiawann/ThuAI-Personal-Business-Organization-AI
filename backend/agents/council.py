@@ -145,24 +145,32 @@ async def run_council(
     memory_block = f"\n\n{founder_memory}" if founder_memory else ""
     base = f"USER REQUEST:\n{user_message}{memory_block}{context_block}"
 
+    def _out(stage: Dict) -> str:
+        """What downstream stages see. A failed stage's raw exception text (which
+        can carry provider internals) is persisted for audit but NEVER piped into
+        the next prompt — downstream agents get a neutral marker instead."""
+        if stage["status"] == "ok":
+            return stage["content"]
+        return f"[{stage['agent']} stage failed — its output is unavailable; reason in this run's logs]"
+
     # Stage 1 — Architect Analyst
     s1 = await _run_stage(db, run_id, "architect_analyst", "analyst", user_message, base)
     # Stage 2 — Red Team Critic
     s2 = await _run_stage(db, run_id, "red_team_critic", "critic", user_message,
-                          f"{base}\n\n[ARCHITECT ANALYST OUTPUT]\n{s1['content']}\n\nAttack this analysis.")
+                          f"{base}\n\n[ARCHITECT ANALYST OUTPUT]\n{_out(s1)}\n\nAttack this analysis.")
     # Stage 3 — Pragmatic Execution Engineer
     s3 = await _run_stage(db, run_id, "pragmatic_execution_engineer", "execution", user_message,
-                          f"{base}\n\n[ANALYST]\n{s1['content']}\n\n[CRITIC]\n{s2['content']}\n\n"
+                          f"{base}\n\n[ANALYST]\n{_out(s1)}\n\n[CRITIC]\n{_out(s2)}\n\n"
                           "Assess execution feasibility on the founder's hardware and a real codebase.")
     # Stage 4 — Architect Analyst revision
     s4 = await _run_stage(db, run_id, "architect_analyst", "analyst", user_message,
-                          f"{base}\n\n[YOUR ANALYSIS]\n{s1['content']}\n\n[CRITIC]\n{s2['content']}\n\n"
-                          f"[EXECUTION ENGINEER]\n{s3['content']}\n\nRevise your analysis accordingly.")
+                          f"{base}\n\n[YOUR ANALYSIS]\n{_out(s1)}\n\n[CRITIC]\n{_out(s2)}\n\n"
+                          f"[EXECUTION ENGINEER]\n{_out(s3)}\n\nRevise your analysis accordingly.")
     # Stage 5 — Executive Synthesizer (routes to frontier Claude when declared).
     synth_routing = inference.route(user_message, mode="council")
     s5 = await _run_stage(db, run_id, "executive_synthesizer", "synthesizer", user_message,
-                          f"USER REQUEST:\n{user_message}{memory_block}\n\n[ANALYST REVISED]\n{s4['content']}\n\n"
-                          f"[CRITIC]\n{s2['content']}\n\n[EXECUTION ENGINEER]\n{s3['content']}\n\n"
+                          f"USER REQUEST:\n{user_message}{memory_block}\n\n[ANALYST REVISED]\n{_out(s4)}\n\n"
+                          f"[CRITIC]\n{_out(s2)}\n\n[EXECUTION ENGINEER]\n{_out(s3)}\n\n"
                           f"Grounding: {grounding_note}\n\nProduce the final structured decision.",
                           temperature=0.4, routing=synth_routing)
     final_response = s5["content"]

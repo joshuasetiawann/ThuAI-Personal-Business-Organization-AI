@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from api.deps import get_db, get_current_user, require_permission
 from core.permissions import Perm
-from core.errors import AppError
+from core.errors import AppError, parse_uuid
 from core.audit import log_audit
 from db.models import WorkflowRun, ApprovalRequest
 from services import workflow_service, approval_service
@@ -54,15 +54,17 @@ async def trigger(req: TriggerRequest, db=Depends(get_db),
             "risk_level": workflow_service.risk_of(req.workflow_name)})
     if workflow_service.needs_approval(req.workflow_name):
         appr = (await db.execute(select(ApprovalRequest).where(
-            ApprovalRequest.id == uuid.UUID(req.approval_id)))).scalar_one_or_none()
+            ApprovalRequest.id == parse_uuid(req.approval_id, "approval_id", 400)))).scalar_one_or_none()
         if not appr or appr.status != "approved" or appr.payload_json.get("workflow_name") != req.workflow_name:
             raise AppError(403, "APPROVAL_REQUIRED", "A valid approved approval is required.")
     run = await workflow_service.trigger(
         db, req.workflow_name, user["email"],
-        approval_id=uuid.UUID(req.approval_id) if req.approval_id else None,
+        approval_id=parse_uuid(req.approval_id, "approval_id", 400) if req.approval_id else None,
         payload=req.payload,
-        source_decision_id=uuid.UUID(req.source_decision_id) if req.source_decision_id else None,
-        source_task_id=uuid.UUID(req.source_task_id) if req.source_task_id else None)
+        source_decision_id=(parse_uuid(req.source_decision_id, "source_decision_id", 400)
+                            if req.source_decision_id else None),
+        source_task_id=(parse_uuid(req.source_task_id, "source_task_id", 400)
+                        if req.source_task_id else None))
     event = "workflow_failed" if run.status == "failed" else "workflow_triggered"
     await log_audit(db, event, actor=user["email"], actor_role=user["role"],
                     entity_type="workflow", entity_id=req.workflow_name,
@@ -81,7 +83,8 @@ async def runs(db=Depends(get_db), user: dict = Depends(require_permission(Perm.
 @router.get("/runs/{run_id}")
 async def run_detail(run_id: str, db=Depends(get_db),
                      user: dict = Depends(require_permission(Perm.RUN_APPROVED_WORKFLOW))):
-    r = (await db.execute(select(WorkflowRun).where(WorkflowRun.id == uuid.UUID(run_id)))).scalar_one_or_none()
+    r = (await db.execute(select(WorkflowRun).where(
+        WorkflowRun.id == parse_uuid(run_id, "run id")))).scalar_one_or_none()
     if not r:
         raise AppError(404, "NOT_FOUND", "Workflow run not found.")
     return {"id": str(r.id), "workflow_name": r.workflow_name, "status": r.status, "logs": r.logs,

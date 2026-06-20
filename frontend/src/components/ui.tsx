@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 export function Card({ title, hint, actions, children }:
   { title: string; hint?: string; actions?: ReactNode; children: ReactNode }) {
@@ -127,10 +127,15 @@ export function useAsync<T>(fn: () => Promise<T>) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // Callers pass inline arrow functions, so depending on fn's identity would
+  // refetch on every render. The latest fn lives in a ref instead: auto-run
+  // stays mount-only, but reload() always executes the CURRENT closure (the
+  // previous version captured the first render's fn forever).
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
   const run = useCallback(() => {
     setLoading(true); setError(null);
-    fn().then(setData).catch((e) => setError(e?.message || "Request failed")).finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fnRef.current().then(setData).catch((e) => setError(e?.message || "Request failed")).finally(() => setLoading(false));
   }, []);
   useEffect(() => { run(); }, [run]);
   return { data, error, loading, reload: run };

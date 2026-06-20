@@ -5,10 +5,10 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, func
 from api.deps import get_db, get_current_user, require_permission
 from core.permissions import Perm
-from core.errors import AppError
+from core.errors import AppError, parse_uuid
 from core.audit import log_audit
 from db.models import Decision, ApprovalRequest
 from services import decision_service, approval_service
@@ -49,11 +49,14 @@ async def create(req: DecisionCreate, db=Depends(get_db),
 async def list_decisions(db=Depends(get_db), user: dict = Depends(get_current_user),
                          limit: int = Query(100, le=500), offset: int = Query(0, ge=0)):
     q = select(Decision).order_by(Decision.created_at.desc())
+    count_q = select(func.count()).select_from(Decision)
     if user["role"] == "viewer":          # viewers: approved only
         q = q.where(Decision.status == "approved")
+        count_q = count_q.where(Decision.status == "approved")
     q = q.limit(limit).offset(offset)
     rows = (await db.execute(q)).scalars().all()
-    return {"decisions": [_brief(d) for d in rows], "total": len(rows)}
+    total = (await db.execute(count_q)).scalar_one()   # real total, not page size
+    return {"decisions": [_brief(d) for d in rows], "total": int(total)}
 
 
 @router.get("/{decision_id}")
@@ -124,7 +127,7 @@ async def execute(decision_id: str, approval_id: str | None = None, db=Depends(g
                                                       "risk_level": d.risk_level})
     if d.risk_level in ("high", "critical"):
         appr = (await db.execute(select(ApprovalRequest).where(
-            ApprovalRequest.id == uuid.UUID(approval_id)))).scalar_one_or_none()
+            ApprovalRequest.id == parse_uuid(approval_id, "approval_id", 400)))).scalar_one_or_none()
         if not appr or appr.status != "approved" or appr.payload_json.get("decision_id") != decision_id:
             raise AppError(403, "APPROVAL_REQUIRED", "A valid approved approval is required.")
     await decision_service.set_status(db, d, "executed", by=user["email"])
@@ -135,7 +138,8 @@ async def execute(decision_id: str, approval_id: str | None = None, db=Depends(g
 
 
 async def _get(db, decision_id: str) -> Decision:
-    d = (await db.execute(select(Decision).where(Decision.id == uuid.UUID(decision_id)))).scalar_one_or_none()
+    d = (await db.execute(select(Decision).where(
+        Decision.id == parse_uuid(decision_id, "decision id")))).scalar_one_or_none()
     if not d:
         raise AppError(404, "NOT_FOUND", "Decision not found.")
     return d

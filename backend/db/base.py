@@ -66,8 +66,8 @@ _engine = None
 _SessionLocal = None
 
 
-def _make_engine():
-    engine = create_async_engine(settings.POSTGRES_URL, echo=False, pool_pre_ping=True,
+def _make_engine(url: str | None = None):
+    engine = create_async_engine(url or settings.POSTGRES_URL, echo=False, pool_pre_ping=True,
                                  future=True)
     # SQLite defaults to foreign_keys=OFF, so ON DELETE CASCADE and FK constraints
     # would be silently ignored — meaning the test suite couldn't catch a cascade or
@@ -82,20 +82,44 @@ def _make_engine():
     return engine
 
 
+async def _try_engine(url: str | None, create_all: bool) -> bool:
+    global _engine, _SessionLocal
+    _engine = _make_engine(url)
+    _SessionLocal = async_sessionmaker(_engine, class_=AsyncSession, expire_on_commit=False)
+    if create_all:
+        # Import models so metadata is populated before create_all.
+        import db.models  # noqa: F401
+        async with _engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    return True
+
+
 async def init_db(create_all: bool = True) -> bool:
-    """Initialise engine + session factory. Returns True if the DB is reachable."""
+    """Initialise engine + session factory. Returns True if the DB is reachable.
+
+    Development fallback: when the configured Postgres is unreachable (e.g. the
+    backend is run bare with `uvicorn main:app`, no docker stack), fall back to a
+    local SQLite file so the app is usable immediately. Production never falls
+    back — a broken DB stays a visible failure."""
     global _engine, _SessionLocal
     try:
-        _engine = _make_engine()
-        _SessionLocal = async_sessionmaker(_engine, class_=AsyncSession, expire_on_commit=False)
-        if create_all:
-            # Import models so metadata is populated before create_all.
-            import db.models  # noqa: F401
-            async with _engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-        return True
+        return await _try_engine(None, create_all)
     except Exception as e:  # pragma: no cover - depends on infra
         print(f"⚠️  Database not reachable: {e}")
+        _engine = None
+        _SessionLocal = None
+    if settings.is_production or not settings.POSTGRES_URL.startswith("postgresql"):
+        return False
+    try:
+        import pathlib
+        dev_db = pathlib.Path("./data") / "thunity_dev.db"
+        dev_db.parent.mkdir(parents=True, exist_ok=True)
+        ok = await _try_engine(f"sqlite+aiosqlite:///{dev_db}", create_all)
+        print(f"⚠️  DEV FALLBACK: Postgres unreachable — using local SQLite at {dev_db}. "
+              "Start the docker stack (or set POSTGRES_URL) to use Postgres.")
+        return ok
+    except Exception as e:  # pragma: no cover - depends on infra
+        print(f"⚠️  SQLite dev fallback failed: {e}")
         _engine = None
         _SessionLocal = None
         return False

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, Form
 from sqlalchemy import select
 from api.deps import get_db, require_permission
 from core.permissions import Perm
-from core.errors import AppError
+from core.errors import AppError, parse_uuid
 from core.audit import log_audit
 from db.models import Dataset
 from services.file_service import file_service
@@ -88,7 +88,8 @@ async def archive_dataset(ds_id: str, db=Depends(get_db),
 
 
 async def _get(db, ds_id: str) -> Dataset:
-    ds = (await db.execute(select(Dataset).where(Dataset.id == uuid.UUID(ds_id)))).scalar_one_or_none()
+    ds = (await db.execute(select(Dataset).where(
+        Dataset.id == parse_uuid(ds_id, "dataset id")))).scalar_one_or_none()
     if not ds:
         raise AppError(404, "NOT_FOUND", "Dataset not found.")
     return ds

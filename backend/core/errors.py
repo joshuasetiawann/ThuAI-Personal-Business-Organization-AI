@@ -1,6 +1,7 @@
 """Structured error helpers — consistent error contract across the API."""
 from __future__ import annotations
 
+import uuid
 from typing import Optional
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
@@ -23,6 +24,17 @@ class AppError(HTTPException):
                  detail: str = "", suggested_action: str = ""):
         super().__init__(status_code=status_code,
                          detail=error_payload(code, message, detail, suggested_action))
+
+
+def parse_uuid(value, what: str = "id", status_code: int = 404) -> uuid.UUID:
+    """Parse a client-supplied UUID. A malformed value raises a structured 404
+    (path lookups) or 400 (body/query references) instead of leaking a 500."""
+    try:
+        return uuid.UUID(str(value))
+    except (ValueError, TypeError, AttributeError):
+        if status_code == 400:
+            raise AppError(400, "INVALID_ID", f"'{value}' is not a valid {what}.")
+        raise AppError(404, "NOT_FOUND", f"No resource found for {what} '{value}'.")
 
 
 def ollama_offline_error(url: str) -> AppError:

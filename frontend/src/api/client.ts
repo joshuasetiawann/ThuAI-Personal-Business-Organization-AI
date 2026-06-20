@@ -2,7 +2,11 @@
 // backend's 202 approval-required contract, and surfaces structured errors.
 import type { DecisionCreate, TaskCreate, StreamMeta, StreamDone } from "../types";
 
-const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:8000";
+// Dev: default to same-origin "" — vite.config.ts proxies /api to the backend,
+// so there is no cross-origin request (and no CORS) at all. A non-empty
+// VITE_API_URL always wins; production builds default to the local backend.
+const API_URL = (import.meta.env.VITE_API_URL as string)
+  || (import.meta.env.DEV ? "" : "http://localhost:8000");
 const TOKEN_KEY = "thunity_token";
 
 export const tokenStore = {

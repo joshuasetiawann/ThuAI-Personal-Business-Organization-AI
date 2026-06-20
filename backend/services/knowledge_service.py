@@ -30,6 +30,12 @@ SUPPORTED = {"txt", "md", "csv", "json", "xlsx", "pdf", "yaml", "yml"}
 CHUNK_CHARS = 900
 CHUNK_OVERLAP = 120
 
+# Parser resource ceilings — a hostile/corrupt file (decompression bomb, huge
+# sheet) must not exhaust memory. Anything beyond the cap is simply not indexed.
+MAX_PDF_PAGES = 1000
+MAX_SHEET_ROWS = 10_000
+MAX_CSV_ROWS = 50_000
+
 # trust ordering for guidance
 TRUST_ORDER = ["untrusted", "low", "medium", "high", "authoritative"]
 # document_status values that must NOT be auto-retrieved
@@ -74,8 +80,9 @@ def parse_file(abs_path: str, ext: str) -> Tuple[List[Dict], Dict]:
         except Exception:
             segments.append({"text": raw})
     elif ext == "csv":
+        import itertools
         with open(abs_path, "r", encoding="utf-8", errors="ignore") as f:
-            rows = list(csv.reader(f))
+            rows = list(itertools.islice(csv.reader(f), MAX_CSV_ROWS))
         schema = detect_tabular_schema(rows)
         extra["schema"] = schema
         text = "Columns: " + ", ".join(schema["columns"]) + f"\nRows: {schema['row_count']}\n"
@@ -86,9 +93,10 @@ def parse_file(abs_path: str, ext: str) -> Tuple[List[Dict], Dict]:
             from openpyxl import load_workbook
             wb = load_workbook(abs_path, read_only=True, data_only=True)
             sheet_schemas = {}
+            import itertools
             for ws in wb.worksheets:
                 rows = [[("" if c is None else str(c)) for c in row]
-                        for row in ws.iter_rows(values_only=True)]
+                        for row in itertools.islice(ws.iter_rows(values_only=True), MAX_SHEET_ROWS)]
                 schema = detect_tabular_schema(rows)
                 sheet_schemas[ws.title] = schema
                 text = f"Sheet: {ws.title}\nColumns: " + ", ".join(schema["columns"]) + \
@@ -103,6 +111,8 @@ def parse_file(abs_path: str, ext: str) -> Tuple[List[Dict], Dict]:
             from pypdf import PdfReader
             reader = PdfReader(abs_path)
             for i, page in enumerate(reader.pages):
+                if i >= MAX_PDF_PAGES:
+                    break
                 segments.append({"text": page.extract_text() or "", "page": i + 1})
         except ImportError:
             raise RuntimeError("pypdf is required to parse .pdf — pip install pypdf")
@@ -165,6 +175,7 @@ async def ingest_document(db, file_meta: Dict, *, owner: str = None, client_name
     chunks = chunk_segments(segments)
     texts = [c["content"] for c in chunks]
     vectors = await embed_texts(texts) if texts else []
+    _assert_embedding_complete(chunks, vectors)
 
     for idx, (c, vec) in enumerate(zip(chunks, vectors)):
         db.add(DocumentChunk(
@@ -174,6 +185,8 @@ async def ingest_document(db, file_meta: Dict, *, owner: str = None, client_name
         ))
     doc.chunk_count = len(chunks)
     doc.document_status = "indexed"  # new docs default: indexed + untrusted
+    doc.metadata_json = {**(doc.metadata_json or {}),
+                         "embedding_model": settings.OLLAMA_MODEL_EMBEDDING}
     await db.flush()
     return doc
 
@@ -185,14 +198,27 @@ async def reindex_document(db, doc: Document, abs_path: str) -> Document:
     segments, extra = parse_file(abs_path, doc.file_type)
     chunks = chunk_segments(segments)
     vectors = await embed_texts([c["content"] for c in chunks]) if chunks else []
+    _assert_embedding_complete(chunks, vectors)
     for idx, (c, vec) in enumerate(zip(chunks, vectors)):
         db.add(DocumentChunk(document_id=doc.id, chunk_index=idx, content=c["content"],
                              embedding_json=vec, token_estimate=max(0, len(c["content"]) // 4),
                              page=c.get("page"), sheet=c.get("sheet")))
     doc.chunk_count = len(chunks)
     doc.document_status = "indexed"
+    doc.metadata_json = {**(doc.metadata_json or {}),
+                         "embedding_model": settings.OLLAMA_MODEL_EMBEDDING}
     await db.flush()
     return doc
+
+
+def _assert_embedding_complete(chunks, vectors) -> None:
+    """A partial embedding batch must fail the whole ingest (transaction rolls
+    back) — otherwise zip() silently drops the tail chunks and they become
+    permanently unretrievable with no error anywhere."""
+    if len(vectors) != len(chunks):
+        raise RuntimeError(
+            f"Embedding returned {len(vectors)} vectors for {len(chunks)} chunks — "
+            "aborting ingest instead of silently indexing a partial document.")
 
 
 # ── retrieval / grounding ────────────────────────────────────────────
@@ -214,8 +240,16 @@ async def retrieve_context(db, query: str, top_k: int = None, filters: Optional[
     res = await db.execute(stmt)
 
     scored = []
+    stale_model_docs: set = set()
     for chunk, doc in res.all():
         if _is_expired(doc, now):                    # never auto-use expired knowledge
+            continue
+        # Embedding-model tracking: vectors from a different embedding model are
+        # incomparable (cosine is meaningless/0), so the doc would just silently
+        # vanish from retrieval. Skip it AND surface the reason loudly.
+        emb_model = (doc.metadata_json or {}).get("embedding_model")
+        if emb_model and emb_model != settings.OLLAMA_MODEL_EMBEDDING:
+            stale_model_docs.add(str(doc.id))
             continue
         if filters:
             if filters.get("min_trust") and _trust_rank(doc.trust_level) < _trust_rank(filters["min_trust"]):
@@ -229,6 +263,10 @@ async def retrieve_context(db, query: str, top_k: int = None, filters: Optional[
             continue
         scored.append((rel, chunk, doc))
     scored.sort(key=lambda x: x[0], reverse=True)
+    if stale_model_docs:
+        print(f"⚠️  Knowledge: {len(stale_model_docs)} document(s) were indexed with a different "
+              f"embedding model than the current '{settings.OLLAMA_MODEL_EMBEDDING}' and were "
+              "excluded from retrieval. Reindex them (POST /api/knowledge/documents/{id}/reindex).")
 
     out = []
     for rel, chunk, doc in scored[:top_k]:
