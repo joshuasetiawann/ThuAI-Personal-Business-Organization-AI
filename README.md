@@ -34,7 +34,7 @@ lives **on your own hardware**, with **your own database**, under **your full co
 > 💡 **Core promise:** every document, decision, memory, embedding, and conversation
 > is stored in a database **you own**, on a machine **you control**. No silent cloud
 > calls. No data leaving your house without your explicit, labelled permission.
-
+ 
 ---
 
 ## ✨ What Makes It Special
