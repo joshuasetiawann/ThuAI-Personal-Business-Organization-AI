@@ -7,6 +7,7 @@
 **A private, local-first AI Company OS** for decision-making, knowledge management,
 task execution, and workflow governance — where **your company brain never leaves your computer**.
 
+
 [![Version](https://img.shields.io/badge/Version-v1.3-blueviolet?style=for-the-badge)](#-version-history)
 [![Local First](https://img.shields.io/badge/Local--First-100%25%20Private-2ea44f?style=for-the-badge)](docs/LOCAL_ONLY_COMPLIANCE.md)
 [![Own Database](https://img.shields.io/badge/Database-Self--Hosted%20PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white)](#-your-data-your-database)
